@@ -1,18 +1,28 @@
-from flask import Blueprint, request, jsonify
-from logic.shelf_life import calculate_shelf_life
+from flask import Blueprint, jsonify
+from datetime import datetime, timedelta
+from db import batch_col
 
 expiry_bp = Blueprint("expiry", __name__)
 
-@expiry_bp.route("/expiry", methods=["POST"])
-def get_expiry():
-    data = request.json
+@expiry_bp.route("/expiry", methods=["GET"])
+def check_expiry():
+    now = datetime.now()
 
-    expiry_date, status = calculate_shelf_life(
-        data["temperature"],
-        data["humidity"]
-    )
+    batches = list(batch_col.find({}, {"_id": 0}))
+
+    expired = []
+    expiring_soon = []
+
+    for b in batches:
+        start = datetime.strptime(b["startDate"], "%Y-%m-%d")
+        expiry_date = start + timedelta(days=2)
+
+        if now > expiry_date:
+            expired.append(b)
+        elif expiry_date - now <= timedelta(hours=36):
+            expiring_soon.append(b)
 
     return jsonify({
-        "expiryDate": expiry_date.strftime("%Y-%m-%d"),
-        "status": status
+        "expired": expired,
+        "expiringSoon": expiring_soon
     })
