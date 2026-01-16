@@ -5,163 +5,119 @@ function Home() {
   const navigate = useNavigate();
 
   return (
-    <div style={styles.page}>
+    <div className="font-sans text-gray-800 bg-gradient-to-br from-green-50 to-blue-50 min-h-screen">
       {/* HERO SECTION */}
-      <section style={styles.hero}>
-        <div style={styles.heroContent}>
-          <h1 style={styles.heroTitle}>
-            Smart Agriculture <br /> Starts with <span style={{ color: "#a5d6a7" }}>AgroSense</span>
+      <section className="min-h-screen bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 text-white flex items-center justify-center px-6 py-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-black opacity-20"></div>
+        <div className="relative z-10 max-w-4xl mx-auto text-center animate-fade-in">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+            Mushroom Cultivation <br />
+            Powered by <span className="text-yellow-300 animate-pulse">Smart Harvest</span>
           </h1>
-          <p style={styles.heroSubtitle}>
-            Monitor cultivation batches, track environment conditions, 
-            manage mushroom orders and grow smarter — all in one platform.
+          <p className="text-xl md:text-2xl mb-10 text-green-100 max-w-2xl mx-auto">
+            Professional mushroom farming platform designed for harvesters.
+            Track batches, monitor environments, predict yields, and maximize harvests.
           </p>
 
-          <div style={styles.heroButtons}>
-            <button style={styles.primaryBtn} onClick={() => navigate("/dashboard")}>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              className="bg-yellow-400 hover:bg-yellow-500 text-green-800 font-bold py-4 px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg"
+              onClick={() => navigate("/dashboard")}
+            >
               View Dashboard
             </button>
-            <button style={styles.secondaryBtn} onClick={() => navigate("/batch")}>
+            <button
+              className="border-2 border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-green-800 font-bold py-4 px-8 rounded-full transition-all duration-300 transform hover:scale-105"
+              onClick={() => navigate("/batch")}
+            >
               Create Batch
             </button>
           </div>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent"></div>
       </section>
 
       {/* FEATURES */}
-      <section style={styles.features}>
-        <Feature
-          title="🌱 Batch Management"
-          desc="Create, track and manage cultivation batches with real-time status."
-        />
-        <Feature
-          title="🌡️ Environment Monitoring"
-          desc="Monitor expiry, safety status and environment health instantly."
-        />
-        <Feature
-          title="🛒 Smart Orders"
-          desc="Place and manage mushroom orders with live tracking."
-        />
-        <Feature
-          title="📊 Analytics Dashboard"
-          desc="Visual insights for batches, orders and expiry trends."
-        />
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-4xl font-bold text-center mb-16 text-gray-800">Powerful Features</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <FeatureCard
+              icon="🌱"
+              title="Batch Management"
+              desc="Create, track and manage cultivation batches with real-time status."
+            />
+            <FeatureCard
+              icon="🌡️"
+              title="Environment Monitoring"
+              desc="Monitor expiry, safety status and environment health instantly."
+            />
+            <FeatureCard
+              icon="🛒"
+              title="Smart Orders"
+              desc="Place and manage mushroom orders with live tracking."
+            />
+            <FeatureCard
+              icon="📊"
+              title="Analytics Dashboard"
+              desc="Visual insights for batches, orders and expiry trends."
+            />
+          </div>
+        </div>
       </section>
 
       {/* WHY AGROSENSE */}
-      <section style={styles.why}>
-        <h2>Why AgroSense?</h2>
-        <p>
-          AgroSense helps farmers and agri-businesses reduce waste,
-          improve productivity and make data-driven decisions.
-        </p>
+      <section className="py-20 px-6 bg-gradient-to-r from-green-100 to-blue-100">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-4xl font-bold mb-8 text-gray-800">Why AgroSense?</h2>
+          <p className="text-xl text-gray-600 leading-relaxed">
+            AgroSense helps farmers and agri-businesses reduce waste,
+            improve productivity and make data-driven decisions with cutting-edge technology.
+          </p>
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+              <h3 className="font-bold text-lg mb-2 text-green-600">Efficiency</h3>
+              <p className="text-gray-600">Streamline operations and reduce manual work.</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+              <h3 className="font-bold text-lg mb-2 text-blue-600">Sustainability</h3>
+              <p className="text-gray-600">Minimize waste and optimize resource usage.</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+              <h3 className="font-bold text-lg mb-2 text-purple-600">Insights</h3>
+              <p className="text-gray-600">Data-driven decisions for better outcomes.</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* CTA */}
-      <section style={styles.cta}>
-        <h2>Ready to Grow Smarter?</h2>
-        <button style={styles.primaryBtn} onClick={() => navigate("/dashboard")}>
-          Get Started
-        </button>
+      <section className="py-20 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-4xl font-bold mb-8">Ready to Grow Smarter?</h2>
+          <p className="text-xl mb-10 text-green-100">Join thousands of farmers using AgroSense to revolutionize their agriculture.</p>
+          <button
+            className="bg-yellow-400 hover:bg-yellow-500 text-green-800 font-bold py-4 px-10 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg text-lg"
+            onClick={() => navigate("/dashboard")}
+          >
+            Get Started Today
+          </button>
+        </div>
       </section>
     </div>
   );
 }
 
 /* FEATURE CARD */
-function Feature({ title, desc }) {
+function FeatureCard({ icon, title, desc }) {
   return (
-    <div style={styles.featureCard}>
-      <h3>{title}</h3>
-      <p>{desc}</p>
+    <div className="bg-white p-8 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 border border-gray-100">
+      <div className="mb-4">{icon}</div>
+      <h3 className="text-xl font-bold mb-3 text-gray-800">{title}</h3>
+      <p className="text-gray-600 leading-relaxed">{desc}</p>
     </div>
   );
 }
 
-/* STYLES */
-const styles = {
-  page: {
-    fontFamily: "Segoe UI, sans-serif",
-    color: "#2e2e2e"
-  },
-
-  hero: {
-    minHeight: "80vh",
-    background: "linear-gradient(135deg, #1b5e20, #2e7d32)",
-    color: "white",
-    display: "flex",
-    alignItems: "center",
-    padding: "0 60px"
-  },
-
-  heroContent: {
-    maxWidth: "700px"
-  },
-
-  heroTitle: {
-    fontSize: "52px",
-    marginBottom: "20px",
-    lineHeight: "1.2"
-  },
-
-  heroSubtitle: {
-    fontSize: "18px",
-    marginBottom: "30px",
-    color: "#e8f5e9"
-  },
-
-  heroButtons: {
-    display: "flex",
-    gap: "15px"
-  },
-
-  primaryBtn: {
-    padding: "14px 28px",
-    fontSize: "16px",
-    borderRadius: "6px",
-    border: "none",
-    background: "#66bb6a",
-    color: "#1b5e20",
-    cursor: "pointer",
-    fontWeight: "bold"
-  },
-
-  secondaryBtn: {
-    padding: "14px 28px",
-    fontSize: "16px",
-    borderRadius: "6px",
-    border: "2px solid #a5d6a7",
-    background: "transparent",
-    color: "#e8f5e9",
-    cursor: "pointer"
-  },
-
-  features: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "30px",
-    padding: "80px 60px",
-    background: "#f5f7f6"
-  },
-
-  featureCard: {
-    background: "white",
-    padding: "30px",
-    borderRadius: "10px",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.1)"
-  },
-
-  why: {
-    padding: "60px",
-    textAlign: "center"
-  },
-
-  cta: {
-    padding: "60px",
-    background: "#2e7d32",
-    color: "white",
-    textAlign: "center"
-  }
-};
-
 export default Home;
+

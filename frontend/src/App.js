@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Environment from "./pages/Environment";
 import Batch from "./pages/Batch";
+import BatchManagement from "./pages/BatchManagement";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
@@ -21,6 +22,7 @@ function App() {
     <Route path="/" element={<Home />} />
     <Route path="/environment" element={<Environment />} />
     <Route path="/batch" element={<Batch />} />
+    <Route path="/batch/:id" element={<BatchManagement />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/products" element={<Products />} />
   <Route path="/orders" element={<Orders />} />

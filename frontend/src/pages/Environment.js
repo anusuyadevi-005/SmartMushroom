@@ -3,6 +3,8 @@ import api from "../services/api";
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -15,22 +17,26 @@ function Environment() {
   const [history, setHistory] = useState([]);
   const [error, setError] = useState("");
   const [weeklyHistory, setWeeklyHistory] = useState([]);
+  const [dailyHistory, setDailyHistory] = useState([]);
 
   useEffect(() => {
     const fetchData = () => {
       api.get("/environment")
         .then(res => {
-          setData(res.data);
+          if (res.data.hasData) {
+            setData(res.data);
+            setHistory(prev => [
+              ...prev.slice(-9), // keep last 10 points
+              {
+                time: res.data.lastUpdated,
+                temperature: res.data.temperature,
+                humidity: res.data.humidity
+              }
+            ]);
+          } else {
+            setData(null);
+          }
           setError("");
-
-          setHistory(prev => [
-            ...prev.slice(-9), // keep last 10 points
-            {
-              time: res.data.lastUpdated,
-              temperature: res.data.temperature,
-              humidity: res.data.humidity
-            }
-          ]);
         })
         .catch(err => {
           console.error(err);
@@ -45,10 +51,25 @@ function Environment() {
   }, []);
 
   useEffect(() => {
+    const fetchDailyHistory = () => {
+      api.get("/environment/history/today")
+        .then(res => setDailyHistory(res.data))
+        .catch(err => console.log(err));
+    };
+
+    fetchDailyHistory();
+    const interval = setInterval(fetchDailyHistory, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     api.get("/environment/history/7days")
       .then(res => setWeeklyHistory(res.data))
       .catch(err => console.log(err));
   }, []);
+
+
 
   if (error) {
     return <p style={{ padding: "30px", color: "red" }}>{error}</p>;
@@ -109,6 +130,46 @@ function Environment() {
         </ResponsiveContainer>
         
       </div>
+
+      {/* Daily Temperature & Humidity Graph */}
+      <div style={{
+        marginTop: "40px",
+        background: "#fff",
+        padding: "20px",
+        borderRadius: "14px",
+        boxShadow: "0 6px 15px rgba(0,0,0,0.1)"
+      }}>
+        <h3>📊 Today's Temperature & Humidity Bar Graph</h3>
+
+        {dailyHistory.length === 0 ? (
+          <p>No daily data available yet. Data will appear as readings are collected throughout the day.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={dailyHistory}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={(t) => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              />
+              <YAxis />
+              <Tooltip
+                labelFormatter={(t) => new Date(t).toLocaleString()}
+              />
+              <Bar
+                dataKey="temperature"
+                fill="#ff7300"
+                name="Temperature (°C)"
+              />
+              <Bar
+                dataKey="humidity"
+                fill="#387908"
+                name="Humidity (%)"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
       {/* Weekly Temperature History */}
 <div style={{
   marginTop: "40px",
@@ -123,7 +184,7 @@ function Environment() {
     <p>No weekly data available</p>
   ) : (
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={weeklyHistory}>
+      <BarChart data={weeklyHistory}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis
           dataKey="timestamp"
@@ -133,19 +194,17 @@ function Environment() {
         <Tooltip
           labelFormatter={(t) => new Date(t).toLocaleString()}
         />
-        <Line
-          type="monotone"
+        <Bar
           dataKey="temperature"
-          stroke="#ff7300"
+          fill="#ff7300"
           name="Temperature (°C)"
         />
-        <Line
-          type="monotone"
+        <Bar
           dataKey="humidity"
-          stroke="#387908"
+          fill="#387908"
           name="Humidity (%)"
         />
-      </LineChart>
+      </BarChart>
     </ResponsiveContainer>
   )}
 </div>

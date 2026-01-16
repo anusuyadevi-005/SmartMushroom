@@ -1,0 +1,8 @@
+Flask
+flask-cors
+pymongo
+authlib
+flask-jwt-extended
+dnspython
+requests
+python-dotenv
