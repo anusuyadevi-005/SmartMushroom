@@ -6,3 +6,6 @@ flask-jwt-extended
 dnspython
 requests
 python-dotenv
+joblib
+pandas
+scikit-learn

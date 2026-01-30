@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../services/api";
 import { useSearchParams } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Leaf, Scissors, Box, Scale, FileText, Activity, Home, AlertCircle, Thermometer, Droplet, Wind, BarChart2, Cpu, Calendar, Globe } from "lucide-react";
 
 function Dashboard() {
   const [summary, setSummary] = useState({
@@ -16,7 +17,13 @@ function Dashboard() {
   const [orderStats, setOrderStats] = useState([]);
   const [environment, setEnvironment] = useState(null);
   const [environmentHistory, setEnvironmentHistory] = useState([]);
+  const [userOrders, setUserOrders] = useState([]);
+  const [userOrderStats, setUserOrderStats] = useState({ totalOrders: 0, totalQuantity: 0, pending: 0, lastOrder: null });
   const [params] = useSearchParams();
+
+  const role = localStorage.getItem('role');
+  const isAdmin = role === 'admin';
+  const isUser = role === 'user';
 
   /* Save token after Google login */
   useEffect(() => {
@@ -25,6 +32,13 @@ function Dashboard() {
       localStorage.setItem("token", token);
     }
   }, [params]);
+
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+
+  useEffect(() => {
+    // Public access allowed — just track login state to show CTAs and personalized features.
+    setIsLoggedIn(!!localStorage.getItem('token'));
+  }, []);
 
   /* Load dashboard cards data */
   useEffect(() => {
@@ -40,8 +54,10 @@ function Dashboard() {
       .catch(() => setBatches([]));
   }, []);
 
-  /* Load harvest predictions */
+  /* Load harvest predictions (admin-only) */
   useEffect(() => {
+    if (!isAdmin) return;
+
     const fetchPrediction = () => {
       // Assuming 30 days since spawn for prediction
       api.post("/predict/harvest", { days_since_spawn: 30 })
@@ -53,10 +69,12 @@ function Dashboard() {
     const interval = setInterval(fetchPrediction, 300000); // Update every 5 minutes
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isAdmin]);
 
-  /* Load order statistics */
+  /* Load order statistics (admin-only) */
   useEffect(() => {
+    if (!isAdmin) return;
+
     api.get("/orders/stats")
       .then(res => {
         console.log("Order stats response:", res.data);
@@ -66,7 +84,27 @@ function Dashboard() {
         console.log("Order stats error:", err);
         setOrderStats([]);
       });
-  }, []);
+  }, [isAdmin]);
+
+  /* Load user-specific orders (user-only) */
+  useEffect(() => {
+    if (!isUser) return;
+
+    api.get('/orders/my')
+      .then(res => {
+        setUserOrders(res.data || []);
+        // compute stats
+        const totalOrders = (res.data || []).length;
+        const totalQuantity = (res.data || []).reduce((acc, o) => acc + (o.quantity || 0), 0);
+        const pending = (res.data || []).filter(o => o.status === 'PENDING').length;
+        const lastOrder = (res.data || []).length ? new Date(res.data[res.data.length - 1].createdAt) : null;
+        setUserOrderStats({ totalOrders, totalQuantity, pending, lastOrder });
+      })
+      .catch(err => {
+        console.log('Failed to load user orders', err);
+        setUserOrders([]);
+      });
+  }, [isUser]);
 
   /* Load environment data */
   useEffect(() => {
@@ -111,7 +149,7 @@ function Dashboard() {
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-center md:text-left mb-4 md:mb-0">
               <h1 className="text-3xl md:text-4xl font-bold mb-2 flex items-center justify-center md:justify-start">
-                <span className="text-4xl md:text-5xl mr-3">🌱</span>
+                <Leaf className="text-4xl md:text-5xl mr-3" />
                 Harvester Command Center
               </h1>
               <p className="text-emerald-100 text-lg">Your mushroom cultivation control room</p>
@@ -121,35 +159,60 @@ function Dashboard() {
             </div>
             <div className="flex flex-wrap gap-3">
               <button className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105">
-                🚀 Start New Batch
+                Start New Batch
               </button>
               <button className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105">
-                🌡️ Check Environment
+                Check Environment
               </button>
               <button className="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105">
-                📝 Daily Checklist
+                Daily Checklist
               </button>
             </div>
           </div>
         </div>
 
         {/* Quick Stats Cards */}
+
+        {!isLoggedIn && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <strong>Public view:</strong> You can monitor environment and batch summaries here. <a href="/login" className="text-amber-600 font-medium">Sign in</a> to manage your farm, create batches and place orders.
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card title="Active Batches" value={summary.activeBatches} icon="🌱" color="from-green-400 to-green-600" />
-          <Card title="Ready to Harvest" value={summary.expiringSoon} icon="✂️" color="from-yellow-400 to-orange-600" />
-          <Card title="Pending Orders" value={summary.totalOrders} icon="📦" color="from-blue-400 to-blue-600" />
-          <Card title="Today's Yield" value="2.4kg" icon="⚖️" color="from-purple-400 to-pink-600" />
+          {isAdmin ? (
+            <>
+              <Card title="Active Batches" value={summary.activeBatches} icon={<Leaf className="w-10 h-10" />} color="from-green-400 to-green-600" />
+              <Card title="Ready to Harvest" value={summary.expiringSoon} icon={<Scissors className="w-10 h-10" />} color="from-yellow-400 to-orange-600" />
+              <Card title="Pending Orders" value={summary.totalOrders} icon={<Box className="w-10 h-10" />} color="from-blue-400 to-blue-600" />
+              <Card title="Today's Yield" value="2.4kg" icon={<Scale className="w-10 h-10" />} color="from-purple-400 to-pink-600" />
+            </>
+          ) : isUser ? (
+            <>
+              <Card title="My Orders" value={userOrderStats.totalOrders} icon={<FileText className="w-10 h-10" />} color="from-blue-400 to-blue-600" />
+              <Card title="Pending" value={userOrderStats.pending} icon={<Leaf className="w-10 h-10" />} color="from-yellow-400 to-orange-600" />
+              <Card title="Items Ordered" value={userOrderStats.totalQuantity} icon={<Box className="w-10 h-10" />} color="from-green-400 to-green-600" />
+              <Card title="Last Order" value={userOrderStats.lastOrder ? userOrderStats.lastOrder.toLocaleDateString() : '—'} icon={<Activity className="w-10 h-10" />} color="from-purple-400 to-pink-600" />
+            </>
+          ) : (
+            <>
+              <Card title="Active Batches" value={summary.activeBatches} icon={<Leaf className="w-10 h-10" />} color="from-green-400 to-green-600" />
+              <Card title="Ready to Harvest" value={summary.expiringSoon} icon={<Scissors className="w-10 h-10" />} color="from-yellow-400 to-orange-600" />
+              <Card title="Pending Orders" value={summary.totalOrders} icon={<Box className="w-10 h-10" />} color="from-blue-400 to-blue-600" />
+              <Card title="Today's Yield" value="2.4kg" icon={<Scale className="w-10 h-10" />} color="from-purple-400 to-pink-600" />
+            </>
+          )}
         </div>
 
         {/* Batch Lifecycle Visualization */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
           <h2 className="text-2xl font-semibold mb-6 flex items-center">
-            <span className="text-3xl mr-3">🌱</span>
+            <Leaf className="text-3xl mr-3" />
             Cultivation Pipeline
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg">
-              <div className="text-4xl mb-2">🧬</div>
+              <div className="text-4xl mb-2"><Activity className="w-10 h-10 inline" /></div>
               <h3 className="font-semibold text-gray-800">Spawn</h3>
               <p className="text-sm text-gray-600">Grain spawn preparation</p>
               <div className="mt-2 text-xs bg-gray-300 rounded-full h-2">
@@ -157,7 +220,7 @@ function Dashboard() {
               </div>
             </div>
             <div className="text-center p-4 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg">
-              <div className="text-4xl mb-2">🏠</div>
+              <div className="text-4xl mb-2"><Home className="w-10 h-10 inline" /></div>
               <h3 className="font-semibold text-gray-800">Incubation</h3>
               <p className="text-sm text-gray-600">Mycelium colonization</p>
               <div className="mt-2 text-xs bg-blue-300 rounded-full h-2">
@@ -165,7 +228,7 @@ function Dashboard() {
               </div>
             </div>
             <div className="text-center p-4 bg-gradient-to-br from-green-100 to-green-200 rounded-lg">
-              <div className="text-4xl mb-2">🌿</div>
+              <div className="text-4xl mb-2"><Leaf className="w-10 h-10 inline" /></div>
               <h3 className="font-semibold text-gray-800">Fruiting</h3>
               <p className="text-sm text-gray-600">Pin formation & growth</p>
               <div className="mt-2 text-xs bg-green-300 rounded-full h-2">
@@ -173,7 +236,7 @@ function Dashboard() {
               </div>
             </div>
             <div className="text-center p-4 bg-gradient-to-br from-yellow-100 to-orange-200 rounded-lg">
-              <div className="text-4xl mb-2">✂️</div>
+              <div className="text-4xl mb-2"><Scissors className="w-10 h-10 inline" /></div>
               <h3 className="font-semibold text-gray-800">Harvest</h3>
               <p className="text-sm text-gray-600">Ready for picking</p>
               <div className="mt-2 text-xs bg-yellow-300 rounded-full h-2">
@@ -188,7 +251,7 @@ function Dashboard() {
           {/* Critical Alerts */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <span className="text-red-500 text-2xl mr-2">🚨</span>
+              <AlertCircle className="text-red-500 text-2xl mr-2" />
               Critical Alerts
             </h3>
             <div className="space-y-3">
@@ -230,7 +293,7 @@ function Dashboard() {
           {/* Daily Checklist */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <span className="text-green-500 text-2xl mr-2">📝</span>
+              <FileText className="text-green-500 text-2xl mr-2" />
               Daily Harvester Checklist
             </h3>
             <div className="space-y-2">
@@ -268,7 +331,7 @@ function Dashboard() {
         {/* Environment Monitoring */}
         {environment && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
-            <h2 className="text-2xl font-semibold mb-4">🌍 Current Environment</h2>
+            <h2 className="text-2xl font-semibold mb-4"><Globe className="inline -mt-1 mr-2" /> Current Environment</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-gradient-to-r from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-center">
@@ -276,7 +339,7 @@ function Dashboard() {
                     <h3 className="text-lg font-semibold">Temperature</h3>
                     <p className="text-3xl font-bold">{environment.temperature} °C</p>
                   </div>
-                  <div className="text-4xl">🌡️</div>
+                  <div className="text-4xl"><Thermometer className="w-12 h-12 inline" /></div>
                 </div>
               </div>
               <div className="bg-gradient-to-r from-blue-400 to-blue-600 rounded-xl p-6 text-white shadow-lg">
@@ -285,7 +348,7 @@ function Dashboard() {
                     <h3 className="text-lg font-semibold">Humidity</h3>
                     <p className="text-3xl font-bold">{environment.humidity} %</p>
                   </div>
-                  <div className="text-4xl">💧</div>
+                  <div className="text-4xl"><Droplet className="w-12 h-12 inline" /></div>
                 </div>
               </div>
               <div className="bg-gradient-to-r from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
@@ -294,7 +357,7 @@ function Dashboard() {
                     <h3 className="text-lg font-semibold">Air Quality</h3>
                     <p className="text-3xl font-bold">{environment.airQuality}</p>
                   </div>
-                  <div className="text-4xl">🌬️</div>
+                  <div className="text-4xl"><Wind className="w-12 h-12 inline" /></div>
                 </div>
               </div>
             </div>
@@ -304,7 +367,7 @@ function Dashboard() {
         {/* Environment History Line Chart */}
         {environmentHistory.length > 0 && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
-            <h2 className="text-2xl font-semibold mb-4">📈 Environment History (Last 24 Hours)</h2>
+            <h2 className="text-2xl font-semibold mb-4"><BarChart2 className="inline -mt-1 mr-2" /> Environment History (Last 24 Hours)</h2>
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={environmentHistory}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -322,10 +385,10 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ML Harvest Predictions */}
-        {harvestPrediction && (
+        {/* ML Harvest Predictions (admin-only) */}
+        {isAdmin && harvestPrediction && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
-            <h2 className="text-2xl font-semibold mb-4">🤖 ML Harvest Predictions</h2>
+            <h2 className="text-2xl font-semibold mb-4"><Cpu className="inline -mt-1 mr-2" /> ML Harvest Predictions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-gradient-to-r from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
                 <div className="flex justify-between items-center">
@@ -333,7 +396,7 @@ function Dashboard() {
                     <h3 className="text-lg font-semibold">Expected Harvest Day</h3>
                     <p className="text-3xl font-bold">{harvestPrediction.expected_harvest_day} days</p>
                   </div>
-                  <div className="text-4xl">📅</div>
+                  <div className="text-4xl"><Calendar className="w-10 h-10 inline" /></div>
                 </div>
               </div>
               <div className="bg-gradient-to-r from-blue-400 to-blue-600 rounded-xl p-6 text-white shadow-lg">
@@ -351,7 +414,7 @@ function Dashboard() {
                     <h3 className="text-lg font-semibold">Based on Temp</h3>
                     <p className="text-3xl font-bold">{harvestPrediction.current_temperature} °C</p>
                   </div>
-                  <div className="text-4xl">🌡️</div>
+                  <div className="text-4xl"><Thermometer className="w-12 h-12 inline" /></div>
                 </div>
               </div>
               <div className="bg-gradient-to-r from-teal-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
@@ -360,7 +423,7 @@ function Dashboard() {
                     <h3 className="text-lg font-semibold">Based on Humidity</h3>
                     <p className="text-3xl font-bold">{harvestPrediction.current_humidity} %</p>
                   </div>
-                  <div className="text-4xl">💧</div>
+                  <div className="text-4xl"><Droplet className="w-12 h-12 inline" /></div>
                 </div>
               </div>
             </div>
@@ -370,38 +433,59 @@ function Dashboard() {
           </div>
         )}
 
-        {/* Order Statistics Pie Chart */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
-          <h2 className="text-2xl font-semibold mb-4">📊 Product Order Distribution</h2>
-          {orderStats.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <PieChart>
-                <Pie
-                  data={orderStats}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ product, count }) => `${product}: ${count}`}
-                  outerRadius={120}
-                  fill="#8884d8"
-                  dataKey="count"
-                >
-                  {orderStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={getProductColor(entry.product)} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-center text-gray-500 py-8">No order data available</p>
-          )}
-        </div>
+        {/* Order Statistics (admin-only) or User Orders */}
+        {isAdmin ? (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
+            <h2 className="text-2xl font-semibold mb-4"><BarChart2 className="inline -mt-1 mr-2" /> Product Order Distribution</h2>
+            {orderStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <PieChart>
+                  <Pie
+                    data={orderStats}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ product, count }) => `${product}: ${count}`}
+                    outerRadius={120}
+                    fill="#8884d8"
+                    dataKey="count"
+                  >
+                    {orderStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={getProductColor(entry.product)} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-gray-500 py-8">No order data available</p>
+            )}
+          </div>
+        ) : isUser ? (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
+            <h2 className="text-2xl font-semibold mb-4"><FileText className="inline -mt-1 mr-2" /> Your Recent Orders</h2>
+            {userOrders.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">You haven't placed any orders yet. Visit the <a href="/products" className="text-amber-600 underline">Shop</a> to start.</p>
+            ) : (
+              <div className="space-y-3">
+                {userOrders.slice().reverse().slice(0,5).map((o) => (
+                  <div key={o._id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <div className="font-medium">{o.product} × {o.quantity}</div>
+                      <div className="text-xs text-gray-500">{o.createdAt ? new Date(o.createdAt).toLocaleString() : '—'}</div>
+                    </div>
+                    <div className="text-sm px-3 py-1 rounded-lg bg-gray-100">{o.status}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* Batch Table */}
         <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-2xl font-semibold mb-4">🌱 All Batches</h2>
+          <h2 className="text-2xl font-semibold mb-4"><Leaf className="inline -mt-1 mr-2" /> All Batches</h2>
 
           <table className="w-full border">
             <thead className="bg-gray-100">

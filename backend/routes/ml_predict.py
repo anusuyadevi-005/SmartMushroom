@@ -5,39 +5,58 @@ from db import env_col
 
 ml_bp = Blueprint("ml", __name__)
 
+# ------------------ YIELD PREDICTION ------------------
 @ml_bp.route("/predict/yield", methods=["POST"])
 @cross_origin()
 def predict():
-    data = request.json
+    data = request.get_json(force=True, silent=True) or {}
 
     temperature = data.get("temperature")
     humidity = data.get("humidity")
+    air_quality = data.get("air_quality", 1)
     days = data.get("days_since_spawn")
 
     if temperature is None or humidity is None or days is None:
         return jsonify({"error": "Missing input data"}), 400
 
-    result = predict_yield(temperature, humidity, days)
+    result = predict_yield(temperature, humidity, air_quality, days)
+    return jsonify(result), 200
 
-    return jsonify(result)
 
+# ------------------ HARVEST PREDICTION ------------------
 @ml_bp.route("/predict/harvest", methods=["POST"])
 @cross_origin()
 def predict_harvest():
-    data = request.json
+    data = request.get_json(force=True, silent=True) or {}
     batch_age = data.get("days_since_spawn")
 
     if batch_age is None:
         return jsonify({"error": "Missing days_since_spawn"}), 400
 
-    # Get current environment data
-    env_data = env_col.find_one({}, {"_id": 0})
-    if not env_data or not env_data.get("temperature") or not env_data.get("humidity") or not env_data.get("airQuality"):
-        return jsonify({"error": "No environment data available"}), 400
+    # Fetch latest environment data
+    env_data = env_col.find_one(sort=[("recordedAt", -1)], projection={"_id": 0})
 
-    temperature = env_data["temperature"]
-    humidity = env_data["humidity"]
-    air_quality = env_data["airQuality"]
+    if not env_data:
+        temperature = 25
+        humidity = 85
+        air_quality = 1
+    else:
+        temperature = env_data.get("temperature", 25)
+        humidity = env_data.get("humidity", 85)
+
+        air_quality_raw = env_data.get("airQuality", "NORMAL AIR")
+        air_quality_map = {
+            "CLEAR SKY": 1,
+            "FEW CLOUDS": 1,
+            "SCATTERED CLOUDS": 1,
+            "BROKEN CLOUDS": 2,
+            "OVERCAST CLOUDS": 2,
+            "LIGHT RAIN": 2,
+            "MODERATE RAIN": 2,
+            "NORMAL AIR": 1,
+            "UNKNOWN": 1
+        }
+        air_quality = air_quality_map.get(str(air_quality_raw).upper(), 1)
 
     result = predict_yield(temperature, humidity, air_quality, batch_age)
 
@@ -46,4 +65,4 @@ def predict_harvest():
         "current_humidity": humidity,
         "current_air_quality": air_quality,
         **result
-    })
+    }), 200

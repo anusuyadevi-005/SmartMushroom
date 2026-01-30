@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import { useNavigate } from "react-router-dom";
+import { Leaf, Edit3, Clipboard, RefreshCw, Rocket, Cpu, Thermometer, Droplet, Scissors, Check, Plus, X, Lightbulb } from "lucide-react";
 
 function Batch() {
   const [batchId, setBatchId] = useState("");
@@ -15,7 +16,23 @@ function Batch() {
   const [showPreview, setShowPreview] = useState(false);
   const [mlPrediction, setMlPrediction] = useState(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
+  const [batches, setBatches] = useState([]);
+  const [showCreateForm, setShowCreateForm] = useState(true);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [loadingBatches, setLoadingBatches] = useState(true);
+  const [deletingBatch, setDeletingBatch] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    // Allow farmers (including unauthenticated visitors) to view batches.
+    // Only admins will see creation/edit controls (controlled by isAdmin state).
+    const admin = localStorage.getItem('role') === 'admin';
+    setIsAdmin(admin);
+    // Default to view mode for non-admins so they directly see the batch list.
+    setShowCreateForm(admin);
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,7 +69,7 @@ function Batch() {
       const response = await api.post("/batch", {
         batchId: batchId.trim(),
         startDate: startDate,
-        growthDays: growthDays
+        growthDays: Number(growthDays)
       });
 
       setExpiryDate(response.data.expiryDate);
@@ -60,7 +77,9 @@ function Batch() {
       setTimeout(() => navigate("/dashboard"), 2000);
     } catch (error) {
       console.error(error);
-      setMessage("Failed to create batch. Please try again.");
+      const serverMsg = error?.response?.data?.message || error.message || "Failed to create batch. Please try again.";
+      setMessage(serverMsg);
+      if (error?.response?.data?.errors) setErrors(error.response.data.errors || {});
     } finally {
       setLoading(false);
     }
@@ -109,6 +128,11 @@ function Batch() {
     }
   };
 
+  // Load batches on component mount
+  useEffect(() => {
+    loadBatches();
+  }, []);
+
   // Compute estimated harvest date and expiry when startDate or growthDays change
   useEffect(() => {
     if (!startDate) {
@@ -134,12 +158,126 @@ function Batch() {
     fetchPrediction(0);
   }, [startDate, growthDays]);
 
+  // Load all batches
+  const loadBatches = async () => {
+    try {
+      const response = await api.get("/batch");
+      setBatches(response.data || []);
+    } catch (error) {
+      console.error("Failed to load batches:", error);
+    } finally {
+      setLoadingBatches(false);
+    }
+  };
+
+  // Start editing a batch
+  const startEdit = (batch) => {
+    setEditingBatch(batch);
+    setBatchId(batch.batchId);
+    setStartDate(batch.startDate);
+    setGrowthDays(batch.growthDays || 90);
+    setShowCreateForm(true);
+    setMessage("");
+    setErrors({});
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingBatch(null);
+    resetForm();
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setBatchId("");
+    setStartDate("");
+    setGrowthDays(90);
+    setEstimatedHarvest("");
+    setExpiryDate("");
+    setBatchType("oyster-mushroom");
+    setShowPreview(false);
+    setMlPrediction(null);
+    setMessage("");
+    setErrors({});
+  };
+
+  // Handle update batch
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+
+    if (!editingBatch) return;
+
+    // Clear previous messages
+    setMessage("");
+    setErrors({});
+
+    // Basic validation
+    const newErrors = {};
+    if (!batchId || batchId.trim().length < 3) {
+      newErrors.batchId = "Batch ID must be at least 3 characters";
+    }
+    if (!startDate) {
+      newErrors.startDate = "Start date is required";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.put(`/batch/${editingBatch.batchId}`, {
+        batchId: batchId.trim(),
+        startDate: startDate,
+        growthDays: Number(growthDays)
+      });
+
+      setMessage("Batch updated successfully!");
+      setEditingBatch(null);
+      resetForm();
+      loadBatches(); // Refresh the list
+      setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      console.error("Update batch error:", error);
+      // Try to surface a helpful message from the server if present
+      const serverMsg = error?.response?.data?.error || error?.response?.data?.message;
+      setMessage(`Failed to update batch: ${serverMsg || 'Please try again.'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle delete batch
+  const handleDelete = async (batchId) => {
+    if (!window.confirm(`Are you sure you want to delete batch ${batchId}?`)) {
+      return;
+    }
+
+    setDeletingBatch(batchId);
+    try {
+      await api.delete(`/batch/${batchId}`);
+      setMessage("Batch deleted successfully!");
+      loadBatches(); // Refresh the list
+      setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      console.error(error);
+      const serverMsg = error?.response?.data?.message || error.message || "Failed to delete batch. Please try again.";
+      setMessage(serverMsg);
+    } finally {
+      setDeletingBatch(null);
+    }
+  };
+
   const getBatchTypeIcon = (type) => {
+    const commonClass = "w-16 h-16 opacity-20";
     switch (type) {
-      case 'oyster-mushroom': return '🍄';
-      case 'button-mushroom': return '🍄';
-      case 'shiitake': return '🍄';
-      default: return '🌱';
+      case 'oyster-mushroom':
+      case 'button-mushroom':
+      case 'shiitake':
+        return <Leaf className={commonClass} />;
+      default:
+        return <Leaf className={commonClass} />;
     }
   };
 
@@ -159,8 +297,8 @@ function Batch() {
         <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl shadow-2xl p-8 mb-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold mb-2">🌱 Create New Batch</h1>
-              <p className="text-emerald-100 text-lg">Start a new mushroom cultivation batch with smart predictions</p>
+              <h1 className="text-4xl font-bold mb-2">{isAdmin && showCreateForm ? (<><Leaf className="inline -mt-1 mr-2" /> Create New Batch</>) : (<><Leaf className="inline -mt-1 mr-2" /> Batches</>)}</h1>
+              <p className="text-emerald-100 text-lg">{isAdmin && showCreateForm ? 'Start a new mushroom cultivation batch with smart predictions' : 'View active and past batches, check predictions and monitor farm progress'}</p>
             </div>
             <div className="hidden md:block">
               <div className="text-6xl opacity-20">{getBatchTypeIcon(batchType)}</div>
@@ -172,15 +310,54 @@ function Batch() {
           {/* Main Form */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-lg p-8">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Batch Type Selection */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">Batch Type</label>
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {editingBatch ? (<><Edit3 className="inline -mt-1 mr-2" /> Edit Batch</>) : (<><Leaf className="inline -mt-1 mr-2" /> Create New Batch</>)}
+                  </h2>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newShow = !showCreateForm;
+                        setShowCreateForm(newShow);
+                        if (!newShow) loadBatches();
+                      }}
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all duration-200"
+                    >
+                      {showCreateForm ? (<><Clipboard className="inline -mt-1 mr-2" /> View Batches</>) : (<><Plus className="inline -mt-1 mr-2" /> Create Batch</>)}
+                    </button>
+                    {editingBatch && (
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-all duration-200"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {showCreateForm && (
+                isAdmin ? (
+                  <form onSubmit={editingBatch ? handleUpdate : handleSubmit} className="space-y-6">
+                  {/* Batch Type Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">Batch Type</label>
+                
+                
+                
+                  
+                
+                
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
-                      { value: 'oyster-mushroom', label: 'Oyster Mushroom', icon: '🍄' },
-                      { value: 'button-mushroom', label: 'Button Mushroom', icon: '🍄' },
-                      { value: 'shiitake', label: 'Shiitake', icon: '🍄' }
+                      { value: 'oyster-mushroom', label: 'Oyster Mushroom', icon: <Leaf className="w-8 h-8 inline mb-2" /> },
+                      { value: 'button-mushroom', label: 'Button Mushroom', icon: <Leaf className="w-8 h-8 inline mb-2" /> },
+                      { value: 'shiitake', label: 'Shiitake', icon: <Leaf className="w-8 h-8 inline mb-2" /> }
                     ].map((type) => (
                       <button
                         key={type.value}
@@ -222,7 +399,7 @@ function Batch() {
                       disabled={loading}
                       className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl"
                     >
-                      🎲 Generate
+                      <RefreshCw className="inline -mt-1 mr-2" /> Generate
                     </button>
                     <button
                       type="button"
@@ -230,7 +407,7 @@ function Batch() {
                       disabled={!batchId || loading}
                       className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl"
                     >
-                      📋 Copy
+                      <Clipboard className="inline -mt-1 mr-2" /> Copy
                     </button>
                   </div>
                 </div>
@@ -279,7 +456,7 @@ function Batch() {
                 {startDate && (
                   <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl p-6 text-white shadow-lg">
                     <h3 className="text-lg font-semibold mb-4 flex items-center">
-                      <span className="text-2xl mr-2">🤖</span>
+                      <Cpu className="inline -mt-1 mr-2" />
                       AI Harvest Predictions
                     </h3>
 
@@ -339,7 +516,7 @@ function Batch() {
                           Creating Batch...
                         </div>
                       ) : (
-                        '🚀 Create Batch'
+                        <><Rocket className="inline -mt-1 mr-2" /> Create Batch</>
                       )}
                     </button>
                     <button
@@ -362,13 +539,74 @@ function Batch() {
                   }`}>
                     <div className="flex items-center">
                       <span className="text-xl mr-2">
-                        {message.toLowerCase().includes('failed') ? '❌' : '✅'}
+                        {message.toLowerCase().includes('failed') ? <X className="inline" /> : <Check className="inline" />}
                       </span>
                       {message}
                     </div>
                   </div>
                 )}
               </form>
+                ) : (
+                  <div className="p-6 bg-yellow-50 rounded-lg text-yellow-800">
+                    <p className="font-semibold">Admin access required</p>
+                    <p className="text-sm mt-2">Only admins can create or edit batches. <a href="/login" className="underline font-medium">Sign in as admin</a> to manage batches.</p>
+                  </div>
+                )
+              )}
+
+              {!showCreateForm && (
+                isAdmin ? (
+                  <div className="bg-white rounded-xl shadow-lg p-6 mt-6">
+                    <h2 className="text-2xl font-semibold mb-4"><Leaf className="inline -mt-1 mr-2" /> All Batches</h2>
+
+                    {loadingBatches ? (
+                      <div className="text-center py-10">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent mx-auto mb-4"></div>
+                        Loading batches...
+                      </div>
+                    ) : batches.length === 0 ? (
+                      <div className="text-center py-10 text-gray-500">
+                        No batches found
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {batches.map((b) => (
+                          <div key={b.batchId} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <div className="font-medium">{b.batchId}</div>
+                              <div className="text-xs text-gray-500">{b.startDate ? new Date(b.startDate).toLocaleDateString() : '—'}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(b)}
+                                  className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(b.batchId)}
+                                  disabled={deletingBatch === b.batchId}
+                                  className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded disabled:opacity-50"
+                                >
+                                  {deletingBatch === b.batchId ? 'Deleting...' : 'Delete'}
+                                </button>
+                              </>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-yellow-50 rounded-lg text-yellow-800 mt-6">
+                    <p className="font-semibold">Admin access required</p>
+                    <p className="text-sm mt-2">This page is restricted to admins. <a href="/login" className="underline font-medium">Sign in as admin</a> to manage batches. If you're a farmer wanting to buy supplies, visit our <a href="/products" className="text-amber-600 underline">Shop</a>.</p>
+                  </div>
+                )
+              )} 
             </div>
           </div>
 
@@ -425,7 +663,7 @@ function Batch() {
                   {/* ML Predictions */}
                   {predictionLoading ? (
                     <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 rounded-lg text-white">
-                      <div className="text-sm opacity-90">🤖 ML Predictions</div>
+                      <div className="text-sm opacity-90"><Cpu className="inline -mt-1 mr-2" /> ML Predictions</div>
                       <div className="flex items-center mt-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                         <span className="text-sm">Analyzing...</span>
@@ -433,7 +671,7 @@ function Batch() {
                     </div>
                   ) : mlPrediction ? (
                     <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 rounded-lg text-white">
-                      <div className="text-sm opacity-90">🤖 ML Predictions</div>
+                      <div className="text-sm opacity-90"><Cpu className="inline -mt-1 mr-2" /> ML Predictions</div>
                       <div className="grid grid-cols-2 gap-4 mt-2">
                         <div>
                           <div className="text-xs opacity-75">Expected Harvest Day</div>
@@ -450,7 +688,7 @@ function Batch() {
                     </div>
                   ) : startDate ? (
                     <div className="bg-gray-100 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600">🤖 ML Predictions</div>
+                      <div className="text-sm text-gray-600"><Cpu className="inline -mt-1 mr-2" /> ML Predictions</div>
                       <div className="text-xs text-gray-500 mt-1">
                         Set a start date to see AI-powered predictions
                       </div>
@@ -458,7 +696,7 @@ function Batch() {
                   ) : null}
 
                   <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="text-sm text-blue-700 mb-2">💡 Pro Tip</div>
+                    <div className="text-sm text-blue-700 mb-2"><Lightbulb className="inline -mt-1 mr-2" /> Pro Tip</div>
                     <div className="text-xs text-blue-600">
                       Monitor your batch regularly and maintain optimal temperature (20-25°C) and humidity (85-90%) for best results.
                     </div>

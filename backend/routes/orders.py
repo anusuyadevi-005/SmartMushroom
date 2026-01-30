@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from db import order_col
 from bson import ObjectId
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 orders_bp = Blueprint("orders", __name__)
 
@@ -39,12 +40,16 @@ def create_order():
         "createdAt": datetime.now()
     }
 
+    # If client provides email (e.g., when user is logged in), store it to associate orders with user accounts
+    if data.get("email"):
+        order["email"] = data.get("email")
+
     order_col.insert_one(order)
     return jsonify({"message": "Order placed successfully"}), 201
 
 
 # ================================
-# ADMIN → VIEW ALL ORDERS
+# VIEW ALL ORDERS (Public)
 # ================================
 @orders_bp.route("/orders", methods=["GET"])
 def get_orders():
@@ -58,7 +63,13 @@ def get_orders():
 # ADMIN → UPDATE STATUS
 # ================================
 @orders_bp.route("/orders/status", methods=["PUT"])
+@jwt_required()
 def update_status():
+    identity = get_jwt_identity() or {}
+    role = identity.get("role") if isinstance(identity, dict) else None
+    if role != "admin":
+        return jsonify({"error": "Admin access required"}), 403
+
     data = request.json
 
     result = order_col.update_one(
@@ -85,6 +96,61 @@ def track_orders(phone):
 
 
 # ================================
+# USER → UPDATE ORDER (QUANTITY ONLY IF PENDING)
+# ================================
+@orders_bp.route("/orders/<order_id>", methods=["PUT"])
+def update_order(order_id):
+    try:
+        data = request.json
+        order = order_col.find_one({"_id": ObjectId(order_id)})
+
+        if not order:
+            return jsonify({"error": "Order not found"}), 404
+
+        if order["status"] != "PENDING":
+            return jsonify({"error": "Only pending orders can be updated"}), 400
+
+        update_data = {}
+        if "quantity" in data:
+            update_data["quantity"] = data["quantity"]
+
+        if update_data:
+            result = order_col.update_one(
+                {"_id": ObjectId(order_id)},
+                {"$set": update_data}
+            )
+            if result.matched_count == 0:
+                return jsonify({"error": "Order not found"}), 404
+
+        return jsonify({"message": "Order updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Failed to update order", "details": str(e)}), 500
+
+
+# ================================
+# USER → DELETE ORDER (ONLY IF PENDING)
+# ================================
+@orders_bp.route("/orders/<order_id>", methods=["DELETE"])
+def delete_order(order_id):
+    try:
+        order = order_col.find_one({"_id": ObjectId(order_id)})
+
+        if not order:
+            return jsonify({"error": "Order not found"}), 404
+
+        if order["status"] != "PENDING":
+            return jsonify({"error": "Only pending orders can be deleted"}), 400
+
+        result = order_col.delete_one({"_id": ObjectId(order_id)})
+        if result.deleted_count == 0:
+            return jsonify({"error": "Order not found"}), 404
+
+        return jsonify({"message": "Order deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Failed to delete order", "details": str(e)}), 500
+
+
+# ================================
 # DASHBOARD → ORDER STATISTICS
 # ================================
 @orders_bp.route("/orders/stats", methods=["GET"])
@@ -103,3 +169,26 @@ def get_order_stats():
         })
 
     return jsonify(result)
+
+
+# ================================
+# USER → FETCH OWN ORDERS (AUTHENTICATED)
+# ================================
+@orders_bp.route("/orders/my", methods=["GET"])
+@jwt_required()
+def my_orders():
+    identity = get_jwt_identity() or {}
+    email = None
+    if isinstance(identity, dict):
+        email = identity.get("email")
+
+    if not email:
+        return jsonify({"error": "User email not found in token"}), 400
+
+    orders = list(order_col.find({"email": email}))
+    # Convert ObjectId to string and return relevant fields
+    for o in orders:
+        o["_id"] = str(o["_id"])
+        if "createdAt" in o:
+            o["createdAt"] = o["createdAt"].isoformat()
+    return jsonify(orders)

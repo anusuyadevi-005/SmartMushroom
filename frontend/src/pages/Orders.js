@@ -1,22 +1,47 @@
 import React, { useEffect, useState, useMemo } from "react";
 import api from "../services/api";
+import { Clipboard, ShoppingCart, Search, Hourglass, CheckCircle, Box, Truck, Inbox, HelpCircle } from "lucide-react";
 
 function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [error, setError] = useState("");
+  const [errorStatus, setErrorStatus] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
   const [searchTerm, setSearchTerm] = useState("");
 
   const loadOrders = () => {
     setLoading(true);
+    setError("");
     api.get("/orders")
       .then(res => {
         setOrders(res.data);
         setLoading(false);
       })
       .catch(err => {
-        console.log(err);
+        console.error("Failed to load orders:", err);
+        const status = err.response?.status;
+        const serverMsg = err.response?.data?.error || err.response?.data || err.message;
+
+        // If token is malformed/expired, backend libraries (e.g., flask-jwt-extended) may return 422.
+        if (status === 422) {
+          // Clear invalid token so subsequent public requests succeed
+          localStorage.removeItem("token");
+          localStorage.removeItem("role");
+          setError("Session invalid or malformed token. Please sign in again.");
+          setErrorStatus(422);
+        } else if (status === 401) {
+          setError("Authentication required. Please sign in to access admin actions.");
+          setErrorStatus(401);
+        } else {
+          setError("Failed to load orders. Please try again later.");
+          setErrorStatus(status || 500);
+        }
+
+        // Log server message for developer debugging (visible in console only)
+        console.debug("Orders load error details:", serverMsg);
         setLoading(false);
       });
   };
@@ -96,15 +121,20 @@ function Orders() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'PENDING': return '⏳';
-      case 'ACCEPTED': return '✅';
-      case 'PACKED': return '📦';
-      case 'DELIVERED': return '🚚';
-      default: return '❓';
+      case 'PENDING': return <Hourglass className="inline mr-2 text-lg" />;
+      case 'ACCEPTED': return <CheckCircle className="inline mr-2 text-lg" />;
+      case 'PACKED': return <Box className="inline mr-2 text-lg" />;
+      case 'DELIVERED': return <Truck className="inline mr-2 text-lg" />;
+      default: return <HelpCircle className="inline mr-2 text-lg" />;
     }
-  };
+  }; 
 
   const getActionButton = (order) => {
+    const role = localStorage.getItem("role");
+    if (role !== "admin") {
+      return null; // Only admins can update order status
+    }
+
     switch (order.status) {
       case 'PENDING':
       case 'PLACED':
@@ -155,11 +185,11 @@ function Orders() {
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 mb-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold mb-2">📋 Orders Management</h1>
+              <h1 className="text-4xl font-bold mb-2"><Clipboard className="inline -mt-1 mr-2" /> Orders Management</h1>
               <p className="text-indigo-100 text-lg">Manage and track all customer orders efficiently</p>
             </div>
             <div className="hidden md:block">
-              <div className="text-6xl opacity-20">🛒</div>
+              <div className="text-6xl opacity-20"><ShoppingCart className="w-16 h-16 opacity-20" /></div>
             </div>
           </div>
         </div>
@@ -171,8 +201,8 @@ function Orders() {
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-400">🔍</span>
-                </div>
+                  <Search className="text-gray-400" />
+                </div> 
                 <input
                   type="text"
                   placeholder="Search by customer or product..."
@@ -183,6 +213,31 @@ function Orders() {
               </div>
             </div>
 
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 flex items-center justify-between">
+            <div>{error}</div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={loadOrders}
+                className="bg-white text-red-700 px-3 py-1 rounded shadow-sm text-sm"
+              >
+                Retry
+              </button>
+              {(errorStatus === 401 || errorStatus === 422) && (
+                <button
+                  onClick={() => window.location.href = "/login"}
+                  className="bg-amber-600 text-white px-3 py-1 rounded shadow-sm text-sm"
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
+          </div>
+        )
+        }
+
+
             {/* Filter */}
             <div className="flex items-center space-x-4">
               <label className="text-sm font-semibold text-gray-700">Filter Status:</label>
@@ -192,10 +247,10 @@ function Orders() {
                 className="border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white shadow-sm"
               >
                 <option value="ALL">All Orders</option>
-                <option value="PENDING">⏳ Pending</option>
-                <option value="ACCEPTED">✅ Accepted</option>
-                <option value="PACKED">📦 Packed</option>
-                <option value="DELIVERED">🚚 Delivered</option>
+                <option value="PENDING">Pending</option>
+                <option value="ACCEPTED">Accepted</option>
+                <option value="PACKED">Packed</option>
+                <option value="DELIVERED">Delivered</option>
               </select>
             </div>
 
@@ -216,7 +271,7 @@ function Orders() {
         ) : sortedOrders.length === 0 ? (
           /* Empty State */
           <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <div className="text-6xl mb-4">📭</div>
+            <div className="text-6xl mb-4"><Inbox className="w-16 h-16 inline" /></div>
             <h3 className="text-2xl font-semibold text-gray-900 mb-2">No Orders Found</h3>
             <p className="text-gray-600">Try adjusting your search or filter criteria.</p>
           </div>

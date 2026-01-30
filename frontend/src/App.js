@@ -9,9 +9,12 @@ import BatchManagement from "./pages/BatchManagement";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
-import AdminLogin from "./pages/AdminLogin";
+import MyOrders from "./pages/MyOrders";
 import Login from "./pages/Login";
 import TrackOrder from "./pages/TrackOrder";
+
+import Signup from "./pages/Signup";
+import AdminDashboard from "./pages/AdminDashboard";
 
 
 function App() {
@@ -25,10 +28,13 @@ function App() {
     <Route path="/batch/:id" element={<BatchManagement />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/products" element={<Products />} />
-  <Route path="/orders" element={<Orders />} />
-    <Route path="/adminlogin" element={<AdminLogin />} />
+    <Route path="/orders" element={<Orders />} />
+    <Route path="/myorders" element={<MyOrders />} />
     <Route path="/login" element={<Login />} />
+    <Route path="/signup" element={<Signup />} />
     <Route path="/track" element={<TrackOrder />} />
+
+    <Route path="/admindashboard" element={<AdminDashboard />} />
 
 
 

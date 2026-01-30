@@ -1,12 +1,19 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 from db import batch_col
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 batch_bp = Blueprint("batch", __name__)
 
 @batch_bp.route("/batch", methods=["POST"])
+@jwt_required()
 def create_batch():
     try:
+        identity = get_jwt_identity() or {}
+        role = identity.get("role") if isinstance(identity, dict) else None
+        if role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
         data = request.json
 
         if not data or "batchId" not in data or "startDate" not in data:
@@ -65,8 +72,14 @@ def get_batch(batch_id):
         return jsonify({"error": "Failed to fetch batch", "details": str(e)}), 500
 
 @batch_bp.route("/batch/<batch_id>/stage", methods=["PUT"])
+@jwt_required()
 def update_batch_stage(batch_id):
     try:
+        identity = get_jwt_identity() or {}
+        role = identity.get("role") if isinstance(identity, dict) else None
+        if role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
         data = request.json
         new_stage = data.get("stage")
         notes = data.get("notes", "")
@@ -105,8 +118,14 @@ def update_batch_stage(batch_id):
         return jsonify({"error": "Failed to update batch stage", "details": str(e)}), 500
 
 @batch_bp.route("/batch/<batch_id>/maintenance", methods=["POST"])
+@jwt_required()
 def log_maintenance(batch_id):
     try:
+        identity = get_jwt_identity() or {}
+        role = identity.get("role") if isinstance(identity, dict) else None
+        if role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
         data = request.json
         maintenance_type = data.get("type")  # watering, co2_adjustment, temperature_check, etc.
         value = data.get("value")  # measurement or adjustment amount
@@ -139,8 +158,14 @@ def log_maintenance(batch_id):
         return jsonify({"error": "Failed to log maintenance", "details": str(e)}), 500
 
 @batch_bp.route("/batch/<batch_id>/harvest", methods=["POST"])
+@jwt_required()
 def record_harvest(batch_id):
     try:
+        identity = get_jwt_identity() or {}
+        role = identity.get("role") if isinstance(identity, dict) else None
+        if role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
         data = request.json
         actual_yield = data.get("actualYield")
         quality_score = data.get("qualityScore")
@@ -205,3 +230,95 @@ def update_batch_environment(batch_id):
         return jsonify({"message": f"Environment data updated for batch {batch_id}"}), 200
     except Exception as e:
         return jsonify({"error": "Failed to update environment data", "details": str(e)}), 500
+@batch_bp.route("/batch/<batch_id>", methods=["PUT"])
+@jwt_required()
+def update_batch(batch_id):
+    try:
+        identity = get_jwt_identity() or {}
+        role = identity.get("role") if isinstance(identity, dict) else None
+        if role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
+        data = request.json
+
+        if not data:
+            return jsonify({"error": "Update data is required"}), 400
+
+        # Build update object
+        update_data = {"lastUpdated": datetime.now()}
+
+        # Update allowed fields
+        allowed_fields = ["batchId", "startDate", "expiryDate", "status", "stage", "growthDays"]
+        for field in allowed_fields:
+            if field in data:
+                update_data[field] = data[field]
+
+        # Recalculate dates if startDate or growthDays changed
+        if "startDate" in data or "growthDays" in data:
+            start_date_str = data.get("startDate", None)
+            if not start_date_str:
+                # Get current start date from DB
+                current_batch = batch_col.find_one({"batchId": batch_id})
+                if current_batch:
+                    start_date_str = current_batch.get("startDate")
+
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+                growth_days = int(data.get("growthDays", 90))
+
+                harvest_date = start_date + timedelta(days=growth_days)
+                expiry_date = harvest_date + timedelta(days=2)
+
+                update_data["expiryDate"] = expiry_date.strftime("%Y-%m-%d")
+
+        result = batch_col.update_one(
+            {"batchId": batch_id},
+            {"$set": update_data}
+        )
+
+        if result.matched_count == 0:
+            return jsonify({"error": "Batch not found"}), 404
+
+        return jsonify({"message": f"Batch {batch_id} updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Failed to update batch", "details": str(e)}), 500
+
+@batch_bp.route("/batch/<batch_id>", methods=["DELETE"])
+@jwt_required()
+def delete_batch(batch_id):
+    try:
+        identity = get_jwt_identity() or {}
+        role = identity.get("role") if isinstance(identity, dict) else None
+        if role != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
+        result = batch_col.delete_one({"batchId": batch_id})
+
+        if result.deleted_count == 0:
+            return jsonify({"error": "Batch not found"}), 404
+
+        return jsonify({"message": f"Batch {batch_id} deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Failed to delete batch", "details": str(e)}), 500
+
+@batch_bp.route("/predict/harvest", methods=["POST"])
+def predict_harvest():
+    try:
+        data = request.json
+        days = int(data.get("days_since_spawn", 0))
+
+        # Dummy ML logic (replace later with real model)
+        prediction = {
+            "expected_harvest_day": max(0, 90 - days),
+            "expected_yield_kg": round(1.5 + (days * 0.02), 2),
+            "current_temperature": 24,
+            "current_humidity": 88
+        }
+
+        return jsonify(prediction), 200
+
+    except Exception as e:
+        return jsonify({
+            "error": "Prediction failed",
+            "details": str(e)
+        }), 500

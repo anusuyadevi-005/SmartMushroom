@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { BarChart2, Wrench, Thermometer, Droplet, Wind, Lightbulb, Scissors, Check, CheckCircle, XCircle, Activity, Home, FileText, Leaf } from 'lucide-react';
 
 function BatchManagement() {
   const { batchId } = useParams();
@@ -101,13 +102,14 @@ function BatchManagement() {
   };
 
   const getStageIcon = (stage) => {
+    const cls = "w-6 h-6 inline mr-2";
     switch (stage) {
-      case "SPAWN": return "🧬";
-      case "INCUBATION": return "🏠";
-      case "FRUITING": return "🌿";
-      case "HARVEST": return "✂️";
-      case "COMPLETED": return "✅";
-      default: return "🌱";
+      case "SPAWN": return <Activity className={cls} />;
+      case "INCUBATION": return <Home className={cls} />;
+      case "FRUITING": return <Leaf className={cls} />;
+      case "HARVEST": return <Scissors className={cls} />;
+      case "COMPLETED": return <Check className={cls} />;
+      default: return <Leaf className={cls} />;
     }
   };
 
@@ -184,11 +186,11 @@ function BatchManagement() {
           <div className="border-b border-gray-200">
             <nav className="flex">
               {[
-                { id: "overview", label: "Overview", icon: "📊" },
-                { id: "maintenance", label: "Maintenance", icon: "🔧" },
-                { id: "environment", label: "Environment", icon: "🌡️" },
-                { id: "harvest", label: "Harvest", icon: "✂️" },
-                { id: "logs", label: "Activity Log", icon: "📝" }
+                { id: "overview", label: "Overview", icon: <BarChart2 className="inline -mt-1 mr-2" /> },
+                { id: "maintenance", label: "Maintenance", icon: <Wrench className="inline -mt-1 mr-2" /> },
+                { id: "environment", label: "Environment", icon: <Thermometer className="inline -mt-1 mr-2" /> },
+                { id: "harvest", label: "Harvest", icon: <Scissors className="inline -mt-1 mr-2" /> },
+                { id: "logs", label: "Activity Log", icon: <FileText className="inline -mt-1 mr-2" /> }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -226,7 +228,7 @@ function BatchManagement() {
                   <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
                     <h3 className="text-lg font-semibold mb-2">Status</h3>
                     <div className="text-3xl mb-2">
-                      {batch.status === 'ACTIVE' ? '🟢' : '🔴'}
+                      {batch.status === 'ACTIVE' ? <CheckCircle className="inline" /> : <XCircle className="inline" />}
                     </div>
                     <p className="text-purple-100">{batch.status}</p>
                   </div>
@@ -266,14 +268,14 @@ function BatchManagement() {
                       className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select maintenance type...</option>
-                      <option value="watering">💧 Watering</option>
-                      <option value="co2_adjustment">🌬️ CO2 Adjustment</option>
-                      <option value="temperature_check">🌡️ Temperature Check</option>
-                      <option value="humidity_check">💨 Humidity Check</option>
-                      <option value="light_adjustment">💡 Light Adjustment</option>
-                      <option value="contamination_check">🔍 Contamination Check</option>
-                      <option value="substrate_check">🌱 Substrate Check</option>
-                      <option value="other">📝 Other</option>
+                      <option value="watering">Watering</option>
+                      <option value="co2_adjustment">CO2 Adjustment</option>
+                      <option value="temperature_check">Temperature Check</option>
+                      <option value="humidity_check">Humidity Check</option>
+                      <option value="light_adjustment">Light Adjustment</option>
+                      <option value="contamination_check">Contamination Check</option>
+                      <option value="substrate_check">Substrate Check</option>
+                      <option value="other">Other</option>
                     </select>
                     <input
                       type="text"
@@ -355,28 +357,28 @@ function BatchManagement() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {batch.currentEnvironment.temperature && (
                         <div className="text-center">
-                          <div className="text-2xl">🌡️</div>
+                          <Thermometer className="w-6 h-6" />
                           <div className="font-semibold">{batch.currentEnvironment.temperature}°C</div>
                           <div className="text-sm text-gray-500">Temperature</div>
                         </div>
                       )}
                       {batch.currentEnvironment.humidity && (
                         <div className="text-center">
-                          <div className="text-2xl">💧</div>
+                          <Droplet className="w-6 h-6" />
                           <div className="font-semibold">{batch.currentEnvironment.humidity}%</div>
                           <div className="text-sm text-gray-500">Humidity</div>
                         </div>
                       )}
                       {batch.currentEnvironment.co2Level && (
                         <div className="text-center">
-                          <div className="text-2xl">🌬️</div>
+                          <Wind className="w-6 h-6" />
                           <div className="font-semibold">{batch.currentEnvironment.co2Level} ppm</div>
                           <div className="text-sm text-gray-500">CO2</div>
                         </div>
                       )}
                       {batch.currentEnvironment.lightLevel && (
                         <div className="text-center">
-                          <div className="text-2xl">💡</div>
+                          <Lightbulb className="w-6 h-6" />
                           <div className="font-semibold">{batch.currentEnvironment.lightLevel} lux</div>
                           <div className="text-sm text-gray-500">Light</div>
                         </div>
@@ -392,7 +394,7 @@ function BatchManagement() {
               <div className="space-y-6">
                 {batch.stage === "COMPLETED" ? (
                   <div className="bg-green-50 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold mb-4 text-green-800">Harvest Completed ✅</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-green-800"><Check className="inline -mt-1 mr-2" /> Harvest Completed</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Actual Yield</label>
