@@ -1,0 +1,17 @@
+node_modules/
+*.exe
+*.zip
+*.pdf
+*.mp4
+*.csv
+*.log
+*.png
+*.jpg
+*.jpeg
+*.apk
+*.msi
+*.docx
+*.pptx
+*.dataset
+.env
+
