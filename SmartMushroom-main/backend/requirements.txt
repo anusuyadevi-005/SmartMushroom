@@ -1,0 +1,11 @@
+Flask
+flask-cors
+pymongo
+authlib
+flask-jwt-extended
+dnspython
+requests
+python-dotenv
+joblib
+pandas
+scikit-learn==1.7.2
