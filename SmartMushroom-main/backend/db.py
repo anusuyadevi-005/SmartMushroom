@@ -26,4 +26,5 @@ except Exception as e:
     users_col = None
     env_history_col = None
     product_col = None
+    dish_col = None
     reviews_col = None

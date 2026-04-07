@@ -5,6 +5,7 @@ from db import order_col
 from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from routes.auth import get_current_user_role
+from utils.email_service import send_order_confirmation, send_payment_receipt, send_order_status_update
 
 orders_bp = Blueprint("orders", __name__)
 
@@ -88,6 +89,14 @@ def create_order():
         print(f"[DIAGNOSTIC] Order dictionary prepared: {order}")
         order_col.insert_one(order)
         print("[DIAGNOSTIC] Order inserted successfully")
+
+        # 📧 Send Order Confirmation & Payment Receipt
+        try:
+            send_order_confirmation(email, data.get("customerName"), order)
+            send_payment_receipt(email, data.get("customerName"), order)
+        except Exception as e:
+            print(f"Error sending order emails: {e}")
+
         return jsonify({"message": "Order placed successfully", "orderNo": order["orderNo"]}), 201
     except Exception as e:
         import traceback
@@ -237,6 +246,19 @@ def update_status():
 
         if result.matched_count == 0:
             return jsonify({"error": "Order not found"}), 404
+
+        # 📧 Send Order Status Update Email
+        try:
+            updated_order = order_col.find_one({"_id": ObjectId(data["orderId"])})
+            if updated_order:
+                send_order_status_update(
+                    updated_order.get("email"),
+                    updated_order.get("customerName"),
+                    updated_order.get("orderNo"),
+                    data["status"]
+                )
+        except Exception as e:
+            print(f"Error sending status update email: {e}")
 
         return jsonify({"message": "Order status updated"})
     except Exception as e:

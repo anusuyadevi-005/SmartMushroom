@@ -200,6 +200,21 @@ function Signup() {
               {loading ? "Creating Account..." : "Sign Up Now"}
             </button>
           </div>
+
+          <div className="md:col-span-2">
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+              <div className="relative flex justify-center text-sm"><span className="px-4 bg-white/20 text-gray-500 font-medium">or join with</span></div>
+            </div>
+
+            <button
+              onClick={() => window.location.href = "http://localhost:5000/login/google"}
+              className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold py-4 rounded-2xl transition-all duration-300 flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+              Continue with Google
+            </button>
+          </div>
         </div>
 
         <div className="text-center mt-8">

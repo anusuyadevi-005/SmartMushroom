@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 from flask_jwt_extended import JWTManager
 
 from db import batch_col
@@ -16,8 +17,12 @@ from routes.batch import batch_bp
 from routes.products import products_bp
 from routes.dishes import dishes_bp
 from routes.reviews import reviews_bp
+from routes.auth import oauth as auth_oauth
+from routes.payments import pay_bp
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("APP_SECRET_KEY", "secret123")
+
 # allow CORS from frontend during development and permit Authorization header
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True, allow_headers=["Content-Type", "Authorization"]) 
 
@@ -25,6 +30,18 @@ CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_cred
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'change-this-secret')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 jwt = JWTManager(app)
+# ✅ MAIL CONFIG (ADD THIS ONLY - DON'T MODIFY ABOVE CODE)
+from flask_mail import Mail
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'smartmushroomteam@gmail.com'
+app.config['MAIL_PASSWORD'] = 'siun jfor bulb poin'
+
+mail = Mail(app)
+
+from utils.email_service import send_email
 
 # register blueprints
 app.register_blueprint(env_bp)
@@ -36,6 +53,8 @@ app.register_blueprint(ml_bp)
 app.register_blueprint(products_bp)
 app.register_blueprint(dishes_bp)
 app.register_blueprint(reviews_bp)
+from routes.payments import pay_bp
+app.register_blueprint(pay_bp, url_prefix='/payments')
 
 try:
     from routes.auth import (
@@ -43,9 +62,10 @@ try:
         admin_login, admin_signup, get_wishlist, 
         add_to_wishlist, remove_from_wishlist, get_me, update_me, change_password, upload_picture
     )
+    auth_oauth.init_app(app)
     # Google endpoints (if configured)
     app.add_url_rule("/login/google", view_func=google_login)
-    app.add_url_rule("/login/google/callback", view_func=google_callback)
+    app.add_url_rule("/authorize", "google_callback", google_callback, methods=["GET"])
 
     # User/Admin Identity
     app.add_url_rule("/auth/me", "get_me", get_me, methods=["GET"])
@@ -76,6 +96,15 @@ def home():
     return jsonify({
         "status": "AgroSense Backend Running Successfully"
     })
+
+@app.route("/test-mail")
+def test_mail():
+    send_email(
+        "your_personal_email@gmail.com",  # where you want to receive
+        "Test Mail ✅",
+        "Your SmartMushroom email system is working!"
+    )
+    return "Mail sent successfully!"
 
 
 

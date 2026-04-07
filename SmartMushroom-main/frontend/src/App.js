@@ -1,5 +1,5 @@
-import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import React, { useEffect } from "react";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
@@ -21,6 +21,30 @@ import Wishlist from "./pages/Wishlist";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 
+// Handles the redirect from Google OAuth — saves token+role, routes to correct dashboard
+function GoogleAuthCallback() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
+    const role = params.get("role");
+
+    if (token) {
+      localStorage.setItem("token", token);
+      localStorage.setItem("role", role || "user");
+    }
+
+    if (role === "admin") {
+      navigate("/admindashboard", { replace: true });
+    } else {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [location, navigate]);
+
+  return <div style={{ textAlign: "center", marginTop: "4rem" }}>Signing you in...</div>;
+}
 
 function App() {
   return (
@@ -42,17 +66,15 @@ function App() {
         <Route path="/track" element={
           localStorage.getItem("role") === "admin" ? <AdminDashboard /> : <TrackOrder />
         } />
-
         <Route path="/admindashboard" element={<AdminDashboard />} />
         <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
 
-
-
+        {/* Google OAuth callback handler */}
+        <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
       </Routes>
     </BrowserRouter>
-
   );
 }
 

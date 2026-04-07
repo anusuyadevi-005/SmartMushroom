@@ -12,7 +12,7 @@ function Home() {
     "https://www.shutterstock.com/image-photo/beautiful-texture-pattern-on-underside-260nw-2438261583.jpg",
     "https://farmm2home.com/wp-content/uploads/2022/12/img_7518-scaled-768x1152.jpeg",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS29G31QwET3BFThaTxxzt1Y1MlTDl0NOBIUQ&s",
-    "https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+    "https://tiimg.tistatic.com/fp/1/005/649/organic-dried-oyster-mushroom-318.jpg"
   ];
 
   React.useEffect(() => {
@@ -137,21 +137,23 @@ function Home() {
               icon={<Box className="w-6 h-6 text-emerald-600" />}
               title="Mushroom Pickle"
               desc="Tangy condiment with probiotic benefits."
-              image="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80"
+              image="https://farmm2home.com/wp-content/uploads/2022/12/img_7518-scaled-768x1152.jpeg"
+
               price="₹180"
             />
             <FeatureCard
               icon={<Leaf className="w-6 h-6 text-emerald-600" />}
-              title="Dried Selection"
+              title="Mushroom Powder"
               desc="Perfect for soups and long-term storage."
-              image="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80"
+              image="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS29G31QwET3BFThaTxxzt1Y1MlTDl0NOBIUQ&s"
+
               price="₹320"
             />
             <FeatureCard
               icon={<Coffee className="w-6 h-6 text-emerald-600" />}
-              title="Gourmet Powder"
-              desc="Nutritional booster for your favorite dishes."
-              image="https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80"
+              title="Dried Mushroom"
+              desc="Store for Long Time."
+              image=    "https://tiimg.tistatic.com/fp/1/005/649/organic-dried-oyster-mushroom-318.jpg"
               price="₹210"
             />
           </div>
@@ -164,8 +166,8 @@ function Home() {
         <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-96 h-96 bg-teal-500 opacity-20 blur-[120px] rounded-full"></div>
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl md:text-5xl font-bold mb-8">Watch Our <span className="text-emerald-400">Harvest Journey</span></h2>
-          <p className="text-emerald-100 text-lg mb-12 max-w-2xl mx-auto opacity-80">Take a peek behind the scenes and see how we grow the most beautiful mushrooms in the region.</p>
+          <h2 className="text-4xl md:text-5xl font-bold mb-8">Watch Our <span className="text-emerald-400">Recipes </span></h2>
+          <p className="text-emerald-100 text-lg mb-12 max-w-2xl mx-auto opacity-80">Take a peek behind the scenes and see how we to use them to make a good and tasty.</p>
 
           <div className="relative aspect-[9/16] max-w-sm mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 border-white/10 glass p-2">
             <iframe

@@ -1,10 +1,11 @@
-from flask import redirect, url_for, jsonify, request
+from flask import redirect, url_for, jsonify, request, session
 from authlib.integrations.flask_client import OAuth
 from flask_jwt_extended import create_access_token, get_jwt, get_jwt_identity, jwt_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from db import users_col, admin_col
 from datetime import datetime
 import os
+from utils.email_service import send_welcome_email
 
 oauth = OAuth()
 
@@ -12,11 +13,9 @@ oauth = OAuth()
 try:
     google = oauth.register(
         name="google",
-        client_id=os.environ.get("GOOGLE_CLIENT_ID", "YOUR_GOOGLE_CLIENT_ID"),
-        client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", "YOUR_GOOGLE_CLIENT_SECRET"),
-        access_token_url="https://oauth2.googleapis.com/token",
-        authorize_url="https://accounts.google.com/o/oauth2/auth",
-        api_base_url="https://www.googleapis.com/oauth2/v1/",
+        client_id=os.environ.get("GOOGLE_CLIENT_ID"),
+        client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
         client_kwargs={"scope": "openid email profile"},
     )
 except Exception:
@@ -37,25 +36,54 @@ def get_current_user_role():
 def google_login():
     if not google:
         return jsonify({"error": "Google auth not configured"}), 501
+    import secrets
+    nonce = secrets.token_urlsafe(16)
+    session['oauth_nonce'] = nonce
     redirect_uri = url_for("google_callback", _external=True)
-    return google.authorize_redirect(redirect_uri)
+    print(f"DEBUG google_login: redirect_uri={redirect_uri}")
+    return google.authorize_redirect(redirect_uri, nonce=nonce)
 
 
 def google_callback():
+    print(f"DEBUG: google_callback reached")
     token = google.authorize_access_token()
-    user_info = google.get("userinfo").json()
+    nonce = session.pop('oauth_nonce', None)
+    print(f"DEBUG: nonce={nonce}")
+    user_info = google.parse_id_token(token, nonce=nonce)
 
     email = user_info["email"]
 
-    if not users_col.find_one({"email": email}):
-        users_col.insert_one({
-            "name": user_info.get("name"),
-            "email": email,
-            "picture": user_info.get("picture")
-        })
+    if not users_col.find_one({"email": email}) and not admin_col.find_one({"email": email}):
+        # New user signing up with Google
+        name = user_info.get("name")
+        
+        # 🛡️ ROLE DETECTION
+        admin_emails = os.environ.get("ADMIN_EMAILS", "").split(",")
+        role = "admin" if email in admin_emails else "user"
+        collection = admin_col if role == "admin" else users_col
 
-    access_token = create_access_token(identity=email, additional_claims={"role": "user"})
-    return redirect(f"http://localhost:3000/dashboard?token={access_token}")
+        collection.insert_one({
+            "name": name,
+            "email": email,
+            "picture": user_info.get("picture"),
+            "role": role,
+            "createdAt": datetime.utcnow()
+        })
+        
+        # 📧 Send Welcome Email for Google Signup
+        try:
+            send_welcome_email(email, name)
+        except Exception as e:
+            print(f"Error sending Google signup welcome email: {e}")
+
+    # Determine role for the access token
+    if admin_col.find_one({"email": email}):
+        current_role = "admin"
+    else:
+        current_role = "user"
+
+    access_token = create_access_token(identity=email, additional_claims={"role": current_role})
+    return redirect(f"http://localhost:3000/auth/google/callback?token={access_token}&role={current_role}")
 
 
 # User signup
@@ -83,6 +111,12 @@ def signup():
         "createdAt": datetime.utcnow()
     }
     users_col.insert_one(new_user)
+
+    # 📧 Send Welcome Email
+    try:
+        send_welcome_email(email, name)
+    except Exception as e:
+        print(f"Error sending welcome email: {e}")
 
     token = create_access_token(identity=email, additional_claims={"role": "user"})
     return jsonify({"token": token, "role": "user"})

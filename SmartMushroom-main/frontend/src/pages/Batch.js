@@ -358,23 +358,18 @@ function Batch() {
 
 
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 gap-3 max-w-sm">
                         {[
-                          { value: 'oyster-mushroom', label: 'Oyster Mushroom', icon: <Leaf className="w-8 h-8 inline mb-2" /> },
-                          { value: 'button-mushroom', label: 'Button Mushroom', icon: <Leaf className="w-8 h-8 inline mb-2" /> },
-                          { value: 'shiitake', label: 'Shiitake', icon: <Leaf className="w-8 h-8 inline mb-2" /> }
+                          { value: 'oyster-mushroom', label: 'Oyster Mushroom', icon: <Leaf className="w-8 h-8 inline mb-2" /> }
                         ].map((type) => (
                           <button
                             key={type.value}
                             type="button"
                             onClick={() => setBatchType(type.value)}
-                            className={`p-4 rounded-lg border-2 transition-all duration-200 ${batchType === type.value
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                : 'border-gray-200 hover:border-gray-300 bg-white'
-                              }`}
+                            className={`p-4 rounded-lg border-2 transition-all duration-200 border-emerald-500 bg-emerald-50 text-emerald-700 shadow-md transform scale-[1.02]`}
                           >
                             <div className="text-2xl mb-2">{type.icon}</div>
-                            <div className="text-sm font-medium">{type.label}</div>
+                            <div className="text-sm font-bold uppercase tracking-wider">{type.label}</div>
                           </button>
                         ))}
                       </div>
