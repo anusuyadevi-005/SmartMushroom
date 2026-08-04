@@ -1,5 +1,6 @@
 print("🔥 THIS APP.PY IS RUNNING 🔥")
 from routes.ml_predict import ml_bp
+from routes.chat import chat_bp
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -17,6 +18,7 @@ from routes.batch import batch_bp
 from routes.products import products_bp
 from routes.dishes import dishes_bp
 from routes.reviews import reviews_bp
+from routes.stock import stock_bp
 from routes.auth import oauth as auth_oauth
 from routes.payments import pay_bp
 
@@ -43,6 +45,9 @@ mail = Mail(app)
 
 from utils.email_service import send_email
 
+# Socket.IO server (initialized separately so routes can import it)
+from socketio_server import socketio
+socketio.init_app(app)
 # register blueprints
 app.register_blueprint(env_bp)
 app.register_blueprint(expiry_bp)
@@ -50,9 +55,11 @@ app.register_blueprint(orders_bp, url_prefix='/orders')
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(batch_bp)
 app.register_blueprint(ml_bp)
+app.register_blueprint(chat_bp)
 app.register_blueprint(products_bp)
 app.register_blueprint(dishes_bp)
 app.register_blueprint(reviews_bp)
+app.register_blueprint(stock_bp)
 from routes.payments import pay_bp
 app.register_blueprint(pay_bp, url_prefix='/payments')
 
@@ -109,5 +116,6 @@ def test_mail():
 
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', debug=True, use_reloader=True, threaded=True)
+    # Use Socket.IO runner (eventlet recommended in requirements)
+    socketio.run(app, host='127.0.0.1', port=5000, debug=True)
 

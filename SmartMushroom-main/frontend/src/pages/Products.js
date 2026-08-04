@@ -302,6 +302,10 @@ function ReviewSection({ productId, isAdmin }) {
   );
 }
 
+// Returns true ONLY when stock is explicitly set to 0
+// undefined / null  → product predates the stock feature → treat as "in stock"
+const isOOS = (p) => typeof p.stock === "number" && p.stock === 0;
+
 function Products() {
   const [products, setProducts] = useState([]);
   const navigate = useNavigate();
@@ -315,7 +319,8 @@ function Products() {
     unit: "",
     image: "",
     features: "",
-    discount: 0
+    discount: 0,
+    stock: 0
   });
   const [productLoading, setProductLoading] = useState(false);
   const [productError, setProductError] = useState("");
@@ -490,6 +495,9 @@ function Products() {
       const productData = {
         ...productForm,
         price: Number(productForm.price),
+        stock: productForm.stock !== "" && productForm.stock !== undefined
+          ? Number(productForm.stock)
+          : undefined,
         features: productForm.features ? productForm.features.split(",").map(f => f.trim()) : []
       };
       console.debug("Creating product (payload):", productData);
@@ -503,7 +511,8 @@ function Products() {
         unit: "",
         image: "",
         features: "",
-        discount: 0
+        discount: 0,
+        stock: 0
       });
       setEditingItem(null);
       // Reload products
@@ -533,6 +542,9 @@ function Products() {
       const productData = {
         ...productForm,
         price: Number(productForm.price),
+        stock: productForm.stock !== "" && productForm.stock !== undefined
+          ? Number(productForm.stock)
+          : undefined,
         features: productForm.features ? productForm.features.split(",").map(f => f.trim()) : []
       };
       await api.put(`/products/${editingItem.id}`, productData);
@@ -545,7 +557,9 @@ function Products() {
         price: "",
         unit: "",
         image: "",
-        features: ""
+        features: "",
+        discount: 0,
+        stock: 0
       });
       // Reload products
       const res = await api.get("/products");
@@ -588,7 +602,10 @@ function Products() {
       unit: product.unit,
       image: product.image,
       features: product.features.join(", "),
-      discount: product.discount || 0
+      discount: product.discount || 0,
+      // Keep empty string if product never had stock set, so we don't
+      // accidentally mark old products as out-of-stock
+      stock: product.stock !== undefined && product.stock !== null ? product.stock : ""
     });
   };
 
@@ -602,7 +619,8 @@ function Products() {
       unit: "",
       image: "",
       features: "",
-      discount: 0
+      discount: 0,
+      stock: 0
     });
   };
 
@@ -719,6 +737,30 @@ function Products() {
                     </div>
                   )}
 
+                  {/* Out of Stock overlay — only shows if stock explicitly set to 0 */}
+                  {isOOS(product) && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                      <span className="bg-red-600 text-white font-black text-sm px-4 py-2 rounded-full shadow-xl uppercase tracking-widest border-2 border-white/30">
+                        Out of Stock
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Stock badge for admin */}
+                  {isAdmin && typeof product.stock === "number" && (
+                    <div className="absolute bottom-2 left-2 z-10">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border shadow ${
+                        isOOS(product)
+                          ? "bg-red-600 text-white border-red-400"
+                          : product.stock <= 10
+                          ? "bg-orange-500 text-white border-orange-300"
+                          : "bg-emerald-600 text-white border-emerald-400"
+                      }`}>
+                        {isOOS(product) ? "Stock: 0 (Out)" : `Stock: ${product.stock} units`}
+                      </span>
+                    </div>
+                  )}
+
                   {!isAdmin && (
                     <div className="absolute top-4 right-4">
                     <button
@@ -814,16 +856,27 @@ function Products() {
                 {!isAdmin && (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => addToCart(product)}
-                      className="flex-1 bg-white border-2 border-emerald-500 text-emerald-600 font-bold py-3 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 hover:bg-emerald-50"
+                      onClick={() => !isOOS(product) && addToCart(product)}
+                      disabled={isOOS(product)}
+                      className={`flex-1 border-2 font-bold py-3 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                        isOOS(product)
+                          ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed opacity-60"
+                          : "bg-white border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+                      }`}
                     >
-                      <ShoppingCart className="inline -mt-1 mr-2" /> Cart
+                      <ShoppingCart className="inline -mt-1 mr-2" />
+                      {isOOS(product) ? "Out of Stock" : "Cart"}
                     </button>
                     <button
-                      onClick={() => orderNow(product)}
-                      className="flex-1 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                      onClick={() => !isOOS(product) && orderNow(product)}
+                      disabled={isOOS(product)}
+                      className={`flex-1 font-bold py-3 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg ${
+                        isOOS(product)
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                          : "bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white hover:shadow-xl"
+                      }`}
                     >
-                      Buy Now
+                      {isOOS(product) ? "Unavailable" : "Buy Now"}
                     </button>
                   </div>
                 )}
@@ -1030,6 +1083,36 @@ function Products() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stock Quantity (units)
+                    {productForm.stock === 0 && (
+                      <span className="ml-2 text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                        ⚠ Out of Stock
+                      </span>
+                    )}
+                    {productForm.stock > 0 && productForm.stock <= 10 && (
+                      <span className="ml-2 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                        ⚠ Low Stock
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productForm.stock}
+                    onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 ${
+                      productForm.stock === 0 ? "border-red-400 bg-red-50" :
+                      productForm.stock <= 10 ? "border-orange-400 bg-orange-50" :
+                      "border-gray-300"
+                    }`}
+                    placeholder="Enter available quantity"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Set to 0 to mark as <strong>Out of Stock</strong>. Customers won't be able to order.
+                  </p>
+                </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Image URL
@@ -1226,16 +1309,27 @@ function Products() {
                   {!isAdmin && (
                     <>
                       <button
-                        onClick={() => addToCart(expandedProduct, selectedWeight)}
-                        className="flex-1 bg-white border-2 border-emerald-500 text-emerald-600 font-bold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] hover:bg-emerald-50 flex items-center justify-center gap-2 shadow-sm"
+                        onClick={() => !isOOS(expandedProduct) && addToCart(expandedProduct, selectedWeight)}
+                        disabled={isOOS(expandedProduct)}
+                        className={`flex-1 border-2 font-bold py-4 px-6 rounded-2xl transition-all duration-300 transform flex items-center justify-center gap-2 ${
+                          isOOS(expandedProduct)
+                            ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed opacity-60"
+                            : "bg-white border-emerald-500 text-emerald-600 hover:scale-[1.02] hover:bg-emerald-50 shadow-sm"
+                        }`}
                       >
-                        <ShoppingCart className="w-5 h-5" /> Add to Cart
+                        <ShoppingCart className="w-5 h-5" />
+                        {isOOS(expandedProduct) ? "Out of Stock" : "Add to Cart"}
                       </button>
                       <button
-                        onClick={() => orderNow(expandedProduct, selectedWeight)}
-                        className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-[1.02] shadow-xl flex items-center justify-center gap-2"
+                        onClick={() => !isOOS(expandedProduct) && orderNow(expandedProduct, selectedWeight)}
+                        disabled={isOOS(expandedProduct)}
+                        className={`flex-1 font-bold py-4 px-6 rounded-2xl transition-all duration-300 transform flex items-center justify-center gap-2 ${
+                          isOOS(expandedProduct)
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                            : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white hover:scale-[1.02] shadow-xl"
+                        }`}
                       >
-                        Buy Now
+                        {isOOS(expandedProduct) ? "Currently Unavailable" : "Buy Now"}
                       </button>
                     </>
                   )}

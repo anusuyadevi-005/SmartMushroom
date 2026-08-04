@@ -17,9 +17,11 @@ import TrackOrder from "./pages/TrackOrder";
 
 import Signup from "./pages/Signup";
 import AdminDashboard from "./pages/AdminDashboard";
+import StockManagement from "./pages/StockManagement";
 import Wishlist from "./pages/Wishlist";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
+import Chatbot from "./components/Chatbot";
 
 // Handles the redirect from Google OAuth — saves token+role, routes to correct dashboard
 function GoogleAuthCallback() {
@@ -54,7 +56,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/environment" element={<Environment />} />
         <Route path="/batch" element={<Batch />} />
-        <Route path="/batch/:id" element={<BatchManagement />} />
+        <Route path="/batch/:batchId" element={<BatchManagement />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/products" element={<Products />} />
         <Route path="/orders" element={<Orders />} />
@@ -67,6 +69,7 @@ function App() {
           localStorage.getItem("role") === "admin" ? <AdminDashboard /> : <TrackOrder />
         } />
         <Route path="/admindashboard" element={<AdminDashboard />} />
+        <Route path="/stock-management" element={<StockManagement />} />
         <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
@@ -74,6 +77,8 @@ function App() {
         {/* Google OAuth callback handler */}
         <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
       </Routes>
+      {/* 🍄 Global AI Chatbot — visible on all pages */}
+      <Chatbot />
     </BrowserRouter>
   );
 }

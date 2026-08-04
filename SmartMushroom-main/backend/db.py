@@ -15,6 +15,7 @@ try:
     product_col = db["products"]
     dish_col = db["dishes"]
     reviews_col = db["reviews"]
+    stock_history_col = db["stock_history"]
 except Exception as e:
     print(f"Failed to connect to MongoDB: {e}")
     client = None
@@ -28,3 +29,4 @@ except Exception as e:
     product_col = None
     dish_col = None
     reviews_col = None
+    stock_history_col = None

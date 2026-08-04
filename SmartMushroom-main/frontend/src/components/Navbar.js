@@ -100,6 +100,7 @@ function Navbar() {
             <NavItem to="/batch" icon={PlusSquare} label="Create Batch" />
             <NavItem to="/environment" icon={Thermometer} label="Environment" />
             <NavItem to="/orders" icon={ClipboardList} label="Orders" />
+            <NavItem to="/stock-management" icon={Package} label="Stock" />
           </>
         )}
 
@@ -173,6 +174,7 @@ function Navbar() {
                   </div>
                   <MenuLink to="/profile" icon={User} label="My Profile" onClick={() => setOpen(false)} />
                   {role === "admin" && <MenuLink to="/admindashboard" icon={Settings} label="Admin Dashboard" onClick={() => setOpen(false)} />}
+                  {role === "admin" && <MenuLink to="/stock-management" icon={Package} label="Stock Management" onClick={() => setOpen(false)} />}
                   {role === "user" && <MenuLink to="/myorders" icon={ClipboardList} label="My Orders" onClick={() => setOpen(false)} />}
                   <div className="my-2 border-t border-gray-50"></div>
                   <button

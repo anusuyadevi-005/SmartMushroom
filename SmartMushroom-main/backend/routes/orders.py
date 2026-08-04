@@ -1,11 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
 from datetime import datetime
-from db import order_col
+from db import order_col, product_col
 from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from routes.auth import get_current_user_role
 from utils.email_service import send_order_confirmation, send_payment_receipt, send_order_status_update
+from routes.stock import log_stock_movement
 
 orders_bp = Blueprint("orders", __name__)
 
@@ -87,6 +88,39 @@ def create_order():
             order["quantity"] = first_item.get("quantity", 1)
 
         print(f"[DIAGNOSTIC] Order dictionary prepared: {order}")
+        
+        # 🔹 CHECK STOCK AND DECREMENT
+        for item in items:
+            product_id = item.get("id") or item.get("product") or item.get("variantId")
+            # If variantId is like 'product1_1kg', the base product ID is 'product1'
+            base_product_id = item.get("variantId") or product_id
+            quantity = item.get("quantity", 1)
+
+            product = product_col.find_one({"id": base_product_id})
+            if not product:
+                # Try finding by 'name' if 'id' fails (fallback for legacy)
+                product = product_col.find_one({"name": base_product_id})
+            
+            if product:
+                current_stock = product.get("stock")
+                if current_stock is not None: # Only check if stock feature is enabled for this product
+                    if current_stock < quantity:
+                        return jsonify({"error": f"Insufficient stock for {product.get('name', base_product_id)}. Available: {current_stock}"}), 400
+                    
+                    # Decrement stock atomically
+                    product_col.update_one({"id": product["id"]}, {"$inc": {"stock": -quantity}})
+                    new_stock = current_stock - quantity
+                    log_stock_movement(
+                        product_id=product["id"],
+                        product_name=product.get("name", ""),
+                        change_qty=-quantity,
+                        new_stock=new_stock,
+                        reason=f"Order #{order['orderNo']} placed",
+                        movement_type="order",
+                        reference_id=str(order["orderNo"])
+                    )
+                    print(f"[DIAGNOSTIC] Decremented stock for {product['id']} by {quantity}")
+
         order_col.insert_one(order)
         print("[DIAGNOSTIC] Order inserted successfully")
 
@@ -204,6 +238,26 @@ def manage_order(order_id):
         elif method == "DELETE":
             if order.get("status") != "PENDING":
                 return jsonify({"error": "Only pending orders can be cancelled"}), 400
+
+            # 🔹 RESTORE STOCK ON CANCELLATION
+            items = order.get("items", [])
+            for item in items:
+                base_product_id = item.get("variantId") or item.get("id") or item.get("product")
+                quantity = item.get("quantity", 1)
+                product_col.update_one({"id": base_product_id}, {"$inc": {"stock": quantity}})
+                # Log stock restoration to audit trail
+                restored_product = product_col.find_one({"id": base_product_id})
+                restored_stock = restored_product.get("stock", quantity) if restored_product else quantity
+                log_stock_movement(
+                    product_id=base_product_id,
+                    product_name=restored_product.get("name", "") if restored_product else base_product_id,
+                    change_qty=quantity,
+                    new_stock=restored_stock,
+                    reason=f"Order #{order.get('orderNo', 'N/A')} cancelled",
+                    movement_type="cancellation",
+                    reference_id=str(order.get("orderNo", ""))
+                )
+                print(f"[DIAGNOSTIC] Restored stock for {base_product_id} by {quantity}")
 
             order_col.delete_one({"_id": ObjectId(order_id)})
             return jsonify({"message": "Order deleted successfully"}), 200
@@ -326,17 +380,41 @@ def track_order_by_no(order_no):
 def get_order_stats():
     if get_current_user_role() != "admin":
         return jsonify({"error": "Admin access required"}), 403
-    pipeline = [
-        {"$group": {"_id": "$product", "count": {"$sum": 1}}}
-    ]
-    stats = list(order_col.aggregate(pipeline))
+        
+    orders = list(order_col.find({}, {"product": 1, "items": 1}))
+    
+    stats_dict = {}
+    for o in orders:
+        products_in_order = []
+        if o.get("items"):
+            for item in o.get("items"):
+                name = item.get("name") or item.get("product") or "Unknown"
+                qty = item.get("quantity", 1)
+                products_in_order.append({"name": name, "qty": qty})
+        else:
+            name = o.get("product") or "Unknown"
+            qty = o.get("quantity", 1)
+            products_in_order.append({"name": name, "qty": qty})
+            
+        for p in products_in_order:
+            name_lower = str(p["name"]).lower()
+            if "pickle" in name_lower:
+                normalized = "Mushroom Pickle"
+            elif "powder" in name_lower:
+                normalized = "Mushroom Powder"
+            elif "fresh" in name_lower or "oyster" in name_lower or "mushroom" in name_lower:
+                normalized = "Fresh Oyster Mushroom"
+            else:
+                normalized = str(p["name"])
+                
+            # Aggregate by count of items (orders) or quantity? Let's count by number of times ordered (like original)
+            stats_dict[normalized] = stats_dict.get(normalized, 0) + 1
 
-    # Convert to format suitable for pie chart
     result = []
-    for stat in stats:
+    for prod, count in stats_dict.items():
         result.append({
-            "product": stat["_id"],
-            "count": stat["count"]
+            "product": prod,
+            "count": count
         })
 
     return jsonify(result)

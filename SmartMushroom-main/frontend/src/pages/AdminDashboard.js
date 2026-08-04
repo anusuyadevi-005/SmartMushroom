@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import api from "../services/api";
 import { Leaf, Box, FileText, Search, Clipboard, CheckCircle, Hourglass, Package, Truck, XCircle, Settings, ClipboardList, X, User, Download } from 'lucide-react';
 
@@ -28,6 +28,7 @@ function AdminDashboard() {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderPanel, setShowOrderPanel] = useState(false);
+  const socketRef = useRef(null);
 
   const [batchForm, setBatchForm] = useState({
     batchId: "",
@@ -42,7 +43,8 @@ function AdminDashboard() {
     price: "",
     unit: "",
     image: "",
-    features: ""
+    features: "",
+    stock: 0
   });
 
   const [dishForm, setDishForm] = useState({
@@ -81,6 +83,52 @@ function AdminDashboard() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Socket.IO client: listen for product/stock changes and update UI in real-time
+  useEffect(() => {
+    // connect to backend Socket.IO server
+    try {
+      // lazy import to avoid breaking non-browser environments
+      // eslint-disable-next-line global-require
+      const { io } = require('socket.io-client');
+      const socket = io('http://127.0.0.1:5000');
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.debug('Connected to stock socket');
+      });
+
+      socket.on('stock_update', (payload) => {
+        if (!payload || !payload.id) return;
+        setProducts(prev => prev.map(p => p.id === payload.id ? { ...p, stock: payload.stock } : p));
+      });
+
+      socket.on('product_created', (payload) => {
+        if (!payload || !payload.id) return;
+        setProducts(prev => {
+          // avoid duplicates
+          if (prev.some(p => p.id === payload.id)) return prev;
+          return [...prev, payload];
+        });
+      });
+
+      socket.on('product_updated', (payload) => {
+        if (!payload || !payload.id) return;
+        setProducts(prev => prev.map(p => p.id === payload.id ? { ...p, ...payload } : p));
+      });
+
+      socket.on('product_deleted', (payload) => {
+        if (!payload || !payload.id) return;
+        setProducts(prev => prev.filter(p => p.id !== payload.id));
+      });
+
+      return () => {
+        try { socket.disconnect(); } catch (e) {}
+      };
+    } catch (e) {
+      console.debug('Socket.IO client not available', e);
+    }
+  }, []);
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -132,10 +180,12 @@ function AdminDashboard() {
     try {
       const productData = {
         ...productForm,
+        price: Number(productForm.price),
+        stock: Number(productForm.stock || 0),
         features: productForm.features.split(",").map(f => f.trim())
       };
       await api.post("/products", productData);
-      setProductForm({ id: "", name: "", description: "", price: "", unit: "", image: "", features: "" });
+      setProductForm({ id: "", name: "", description: "", price: "", unit: "", image: "", features: "", stock: 0 });
       loadData();
     } catch (error) {
       console.error("Error creating product:", error);
@@ -146,11 +196,13 @@ function AdminDashboard() {
     try {
       const productData = {
         ...productForm,
+        price: Number(productForm.price),
+        stock: Number(productForm.stock || 0),
         features: productForm.features.split(",").map(f => f.trim())
       };
       await api.put(`/products/${editingItem.id}`, productData);
       setEditingItem(null);
-      setProductForm({ id: "", name: "", description: "", price: "", unit: "", image: "", features: "" });
+      setProductForm({ id: "", name: "", description: "", price: "", unit: "", image: "", features: "", stock: 0 });
       loadData();
     } catch (error) {
       console.error("Error updating product:", error);
@@ -177,7 +229,8 @@ function AdminDashboard() {
       price: product.price,
       unit: product.unit,
       image: product.image,
-      features: product.features.join(", ")
+      features: product.features.join(", "),
+      stock: product.stock || 0
     });
   };
 
@@ -656,6 +709,16 @@ function AdminDashboard() {
                       onChange={(e) => setProductForm({...productForm, features: e.target.value})}
                       className="px-3 py-2 border border-gray-300 text-sm"
                     />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Stock Quantity</label>
+                      <input
+                        type="number"
+                        placeholder="Stock Quantity"
+                        value={productForm.stock}
+                        onChange={(e) => setProductForm({...productForm, stock: e.target.value})}
+                        className="px-3 py-2 border border-gray-300 text-sm"
+                      />
+                    </div>
                   </div>
                   <textarea
                     placeholder="Description"
@@ -675,7 +738,7 @@ function AdminDashboard() {
                       <button
                         onClick={() => {
                           setEditingItem(null);
-                          setProductForm({ id: "", name: "", description: "", price: "", unit: "", image: "", features: "" });
+                          setProductForm({ id: "", name: "", description: "", price: "", unit: "", image: "", features: "", stock: 0 });
                         }}
                         className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 text-sm"
                       >
@@ -696,6 +759,9 @@ function AdminDashboard() {
                           <h4 className="text-sm font-medium text-gray-900">{product.name}</h4>
                           <p className="text-xs text-gray-600 mt-1">{product.description}</p>
                           <p className="text-sm font-semibold text-gray-900 mt-2">₹{product.price} per {product.unit}</p>
+                          <p className={`text-xs font-bold mt-1 ${product.stock <= 5 ? "text-red-500" : "text-emerald-600"}`}>
+                            Stock: {product.stock || 0} units
+                          </p>
                           <div className="mt-3 flex gap-2">
                             <button
                               onClick={() => startEditProduct(product)}

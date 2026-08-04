@@ -457,6 +457,7 @@ function Dashboard() {
                     outerRadius={120}
                     fill="#8884d8"
                     dataKey="count"
+                    nameKey="product"
                   >
                     {orderStats.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getProductColor(entry.product)} />
@@ -500,7 +501,7 @@ function Dashboard() {
               <tr>
                 <th className="border px-4 py-2">Batch ID</th>
                 <th className="border px-4 py-2">Start Date</th>
-                <th className="border px-4 py-2">Expiry Date</th>
+                <th className="border px-4 py-2">Expected Harvest</th>
                 <th className="border px-4 py-2">Progress</th>
                 <th className="border px-4 py-2">Status</th>
               </tr>
@@ -515,30 +516,40 @@ function Dashboard() {
               ) : (
                 batches.map((b, i) => {
                   const startDate = new Date(b.startDate);
-                  const expiryDate = new Date(b.expiryDate);
+                  const harvestDate = b.harvestDate ? new Date(b.harvestDate) : new Date(new Date(b.startDate).getTime() + (b.growthDays || 21) * 24 * 60 * 60 * 1000);
                   const now = new Date();
-                  const totalDays = Math.ceil((expiryDate - startDate) / (1000 * 60 * 60 * 24));
+                  const totalDays = Math.ceil((harvestDate - startDate) / (1000 * 60 * 60 * 24));
                   const daysPassed = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24));
                   const progress = Math.min(Math.max((daysPassed / totalDays) * 100, 0), 100);
+
+                  let currentStatus = b.status || "ACTIVE";
+                  if (b.stage === "COMPLETED") {
+                    currentStatus = "COMPLETED";
+                  } else if (now > harvestDate) {
+                    currentStatus = "EXPIRED";
+                  }
+
+                  let statusBg = "bg-green-500";
+                  if (currentStatus === "COMPLETED") statusBg = "bg-blue-500";
+                  if (currentStatus === "EXPIRED" || currentStatus === "INACTIVE") statusBg = "bg-red-500";
 
                   return (
                     <tr key={i} className="text-center">
                       <td className="border px-4 py-2">{b.batchId}</td>
                       <td className="border px-4 py-2">{b.startDate}</td>
-                      <td className="border px-4 py-2">{b.expiryDate}</td>
+                      <td className="border px-4 py-2">{b.harvestDate || harvestDate.toISOString().split('T')[0]}</td>
                       <td className="border px-4 py-2">
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
                           <div
-                            className="bg-blue-600 h-2.5 rounded-full"
+                            className={`${currentStatus === 'EXPIRED' ? 'bg-red-500' : currentStatus === 'COMPLETED' ? 'bg-blue-400' : 'bg-blue-600'} h-2.5 rounded-full`}
                             style={{ width: `${progress}%` }}
                           ></div>
                         </div>
                         <span className="text-xs text-gray-600">{Math.round(progress)}%</span>
                       </td>
                       <td className="border px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-white ${b.status === "ACTIVE" ? "bg-green-500" : "bg-red-500"
-                          }`}>
-                          {b.status}
+                        <span className={`px-2 py-1 rounded text-white text-xs font-bold ${statusBg}`}>
+                          {currentStatus}
                         </span>
                       </td>
                     </tr>

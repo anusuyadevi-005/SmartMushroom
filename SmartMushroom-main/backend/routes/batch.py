@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
-from db import batch_col
+from db import batch_col, product_col
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from routes.auth import get_current_user_role
+from routes.stock import log_stock_movement
+from socketio_server import socketio
 
 batch_bp = Blueprint("batch", __name__)
 
@@ -30,8 +32,12 @@ def create_batch():
         batch = {
             "batchId": data["batchId"],
             "startDate": data["startDate"],
+            "harvestDate": harvest_date.strftime("%Y-%m-%d"),
             "expiryDate": expiry_date.strftime("%Y-%m-%d"),
+            "growthDays": growth_days,
             "status": "ACTIVE",
+            "productId": data.get("productId", ""),  # Link batch to a product
+            "stage": "SPAWN",
             "createdAt": datetime.now()
         }
 
@@ -186,7 +192,7 @@ def record_harvest(batch_id):
             {
                 "$set": {
                     "stage": "COMPLETED",
-                    "actualYield": actual_yield,
+                    "actualYield": float(actual_yield),
                     "qualityScore": quality_score,
                     "lastUpdated": datetime.now()
                 },
@@ -197,7 +203,56 @@ def record_harvest(batch_id):
         if result.matched_count == 0:
             return jsonify({"error": "Batch not found"}), 404
 
-        return jsonify({"message": f"Harvest recorded for batch {batch_id}"}), 200
+        # ═══ AUTO-ADD HARVEST YIELD TO PRODUCT STOCK ═══
+        stock_updated = False
+        batch_doc = batch_col.find_one({"batchId": batch_id})
+        product_id = batch_doc.get("productId") if batch_doc else None
+
+        if product_id and product_col is not None:
+            product = product_col.find_one({"id": product_id})
+            if product:
+                # Convert yield (kg) to stock units (integer)
+                yield_units = int(actual_yield)
+                current_stock = product.get("stock", 0) or 0
+                new_stock = current_stock + yield_units
+
+                product_col.update_one(
+                    {"id": product_id},
+                    {"$set": {"stock": new_stock}}
+                )
+
+                # Log to stock audit trail
+                log_stock_movement(
+                    product_id=product_id,
+                    product_name=product.get("name", ""),
+                    change_qty=yield_units,
+                    new_stock=new_stock,
+                    reason=f"Harvest from batch {batch_id} (yield: {actual_yield} kg, quality: {quality_score}/10)",
+                    movement_type="harvest",
+                    reference_id=batch_id
+                )
+
+                # Emit real-time stock update
+                try:
+                    socketio.emit('stock_update', {
+                        'id': product_id,
+                        'name': product.get('name', ''),
+                        'stock': new_stock,
+                        'change': yield_units,
+                        'reason': f'Harvest from batch {batch_id}',
+                        'type': 'harvest'
+                    }, namespace='/')
+                except Exception:
+                    pass
+
+                stock_updated = True
+                print(f"[STOCK] Auto-added {yield_units} units to {product_id} from batch {batch_id} harvest")
+
+        return jsonify({
+            "message": f"Harvest recorded for batch {batch_id}",
+            "stockUpdated": stock_updated,
+            "yieldAdded": int(actual_yield) if stock_updated else 0
+        }), 200
     except Exception as e:
         return jsonify({"error": "Failed to record harvest", "details": str(e)}), 500
 
@@ -248,7 +303,7 @@ def update_batch(batch_id):
         update_data = {"lastUpdated": datetime.now()}
 
         # Update allowed fields
-        allowed_fields = ["batchId", "startDate", "expiryDate", "status", "stage", "growthDays"]
+        allowed_fields = ["batchId", "startDate", "expiryDate", "status", "stage", "growthDays", "productId"]
         for field in allowed_fields:
             if field in data:
                 update_data[field] = data[field]
@@ -269,6 +324,7 @@ def update_batch(batch_id):
                 harvest_date = start_date + timedelta(days=growth_days)
                 expiry_date = harvest_date + timedelta(days=2)
 
+                update_data["harvestDate"] = harvest_date.strftime("%Y-%m-%d")
                 update_data["expiryDate"] = expiry_date.strftime("%Y-%m-%d")
 
         result = batch_col.update_one(

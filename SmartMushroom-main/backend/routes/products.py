@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from db import product_col
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
+from socketio_server import socketio
 
 products_bp = Blueprint("products", __name__)
 
@@ -42,6 +43,12 @@ def create_product():
         if product_col.find_one({"id": data["id"]}):
             return jsonify({"error": "Product with this ID already exists"}), 409
 
+        stock_value = data.get("stock", 0)
+        try:
+            stock_value = int(stock_value)
+        except (ValueError, TypeError):
+            stock_value = 0
+
         product_col.insert_one({
             "id": data["id"],
             "name": data["name"],
@@ -50,8 +57,19 @@ def create_product():
             "unit": data["unit"],
             "image": data["image"],
             "features": data["features"],
-            "discount": data.get("discount", 0)
+            "discount": data.get("discount", 0),
+            "stock": stock_value
         })
+
+        # Emit real-time notification to connected admin clients
+        try:
+            socketio.emit('product_created', {
+                'id': data['id'],
+                'name': data['name'],
+                'stock': stock_value
+            }, namespace='/')
+        except Exception:
+            pass
 
         return jsonify({"message": "Product created successfully"}), 201
 
@@ -76,12 +94,28 @@ def update_product(product_id):
 
         data = request.get_json()
         update_data = {k: v for k, v in data.items()
-                       if k in ["name", "description", "price", "unit", "image", "features", "discount"]}
+                       if k in ["name", "description", "price", "unit", "image", "features", "discount", "stock"]}
+        # Ensure stock is always an integer
+        if "stock" in update_data:
+            try:
+                update_data["stock"] = int(update_data["stock"])
+            except (ValueError, TypeError):
+                update_data["stock"] = 0
 
         result = product_col.update_one({"id": product_id}, {"$set": update_data})
 
         if result.matched_count == 0:
             return jsonify({"error": "Product not found"}), 404
+
+        # Emit stock update (if present) and product update to frontends
+        try:
+            emit_payload = {'id': product_id}
+            if 'stock' in update_data:
+                emit_payload['stock'] = update_data['stock']
+                socketio.emit('stock_update', emit_payload, namespace='/')
+            socketio.emit('product_updated', {**emit_payload, **update_data}, namespace='/')
+        except Exception:
+            pass
 
         return jsonify({"message": "Product updated successfully"}), 200
 
@@ -108,6 +142,11 @@ def delete_product(product_id):
 
         if result.deleted_count == 0:
             return jsonify({"error": "Product not found"}), 404
+
+        try:
+            socketio.emit('product_deleted', {'id': product_id}, namespace='/')
+        except Exception:
+            pass
 
         return jsonify({"message": "Product deleted successfully"}), 200
 

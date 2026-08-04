@@ -9,7 +9,7 @@ function Batch() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [growthDays, setGrowthDays] = useState(90);
+  const [growthDays, setGrowthDays] = useState(21);
   const [estimatedHarvest, setEstimatedHarvest] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [batchType, setBatchType] = useState("oyster-mushroom");
@@ -22,6 +22,8 @@ function Batch() {
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [deletingBatch, setDeletingBatch] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [targetProduct, setTargetProduct] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,6 +34,18 @@ function Batch() {
     setIsAdmin(admin);
     // Default to view mode for non-admins so they directly see the batch list.
     setShowCreateForm(admin);
+    // Load products for linking
+    const loadProducts = async () => {
+      try {
+        const res = await api.get("/products");
+        const freshMushroomProducts = (res.data || []).filter(p => {
+          const name = (p.name || '').toLowerCase();
+          return name.includes('mushroom') && !name.includes('pickle') && !name.includes('dry') && !name.includes('powder');
+        });
+        setProducts(freshMushroomProducts);
+      } catch (e) { console.error("Failed to load products", e); }
+    };
+    loadProducts();
   }, [navigate]);
 
   const handleSubmit = async (e) => {
@@ -69,7 +83,8 @@ function Batch() {
       const response = await api.post("/batch", {
         batchId: batchId.trim(),
         startDate: startDate,
-        growthDays: Number(growthDays)
+        growthDays: Number(growthDays),
+        productId: targetProduct
       });
 
       setExpiryDate(response.data.expiryDate);
@@ -180,7 +195,8 @@ function Batch() {
     setEditingBatch(batch);
     setBatchId(batch.batchId);
     setStartDate(batch.startDate);
-    setGrowthDays(batch.growthDays || 90);
+    setGrowthDays(batch.growthDays || 21);
+    setTargetProduct(batch.productId || "");
     setShowCreateForm(true);
     setMessage("");
     setErrors({});
@@ -196,7 +212,7 @@ function Batch() {
   const resetForm = () => {
     setBatchId("");
     setStartDate("");
-    setGrowthDays(90);
+    setGrowthDays(21);
     setEstimatedHarvest("");
     setExpiryDate("");
     setBatchType("oyster-mushroom");
@@ -204,6 +220,7 @@ function Batch() {
     setMlPrediction(null);
     setMessage("");
     setErrors({});
+    setTargetProduct("");
   };
 
   // Handle update batch
@@ -235,7 +252,8 @@ function Batch() {
       await api.put(`/batch/${editingBatch.batchId}`, {
         batchId: batchId.trim(),
         startDate: startDate,
-        growthDays: Number(growthDays)
+        growthDays: Number(growthDays),
+        productId: targetProduct
       });
 
       setMessage("Batch updated successfully!");
@@ -375,6 +393,25 @@ function Batch() {
                       </div>
                     </div>
 
+                    {/* Target Product (for auto stock update on harvest) */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">🎯 Target Product (auto stock on harvest)</label>
+                      <select
+                        value={targetProduct}
+                        onChange={(e) => setTargetProduct(e.target.value)}
+                        disabled={loading}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white"
+                      >
+                        <option value="">-- Select a product --</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name} (Current Stock: {p.stock ?? 0} {p.unit})</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1.5 bg-blue-50 px-3 py-2 rounded-lg">
+                        💡 When you record this batch's harvest, the yield will <strong>automatically</strong> be added to this product's stock.
+                      </p>
+                    </div>
+
                     {/* Batch ID */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-3">Batch ID</label>
@@ -431,7 +468,7 @@ function Batch() {
                         <input
                           type="number"
                           min={1}
-                          max={180}
+                          max={21}
                           value={growthDays}
                           onChange={(e) => setGrowthDays(e.target.value)}
                           disabled={loading}
@@ -574,6 +611,13 @@ function Batch() {
                             </div>
                             <div className="flex items-center gap-2">
                               <>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/batch/${b.batchId}`)}
+                                  className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded"
+                                >
+                                  Manage
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => startEdit(b)}

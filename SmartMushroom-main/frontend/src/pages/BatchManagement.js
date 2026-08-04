@@ -72,14 +72,21 @@ function BatchManagement() {
     if (!actualYield) return;
 
     try {
-      await api.post(`/batch/${batchId}/harvest`, {
+      const res = await api.post(`/batch/${batchId}/harvest`, {
         actualYield: parseFloat(actualYield),
         qualityScore: parseInt(qualityScore),
         notes: harvestNotes
       });
       await loadBatch();
+      // Show stock update feedback
+      if (res.data.stockUpdated) {
+        alert(`✅ Harvest recorded! ${res.data.yieldAdded} units automatically added to product stock.`);
+      } else {
+        alert("✅ Harvest recorded! (No product linked — stock not updated. Link a product in batch settings to enable auto-stock.)");
+      }
     } catch (error) {
       console.error("Failed to record harvest:", error);
+      alert("Failed to record harvest. Please try again.");
     }
   };
 
@@ -98,6 +105,36 @@ function BatchManagement() {
       await loadBatch();
     } catch (error) {
       console.error("Failed to update environment:", error);
+    }
+  };
+
+  const fetchRealTimeEnv = async () => {
+    try {
+      const res = await api.get("/environment");
+      if (res.data && res.data.hasData) {
+        setEnvTemp(res.data.temperature);
+        setEnvHumidity(res.data.humidity);
+      } else {
+        alert("Could not fetch real-time data.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to fetch real-time environment data.");
+    }
+  };
+
+  const readSmartScale = async () => {
+    try {
+      const daysSinceSpawn = Math.ceil((new Date() - new Date(batch.startDate)) / (1000 * 60 * 60 * 24));
+      const res = await api.post("/predict/harvest", { days_since_spawn: daysSinceSpawn });
+      if (res.data && res.data.expected_yield_kg) {
+        setActualYield(res.data.expected_yield_kg);
+      } else {
+        alert("Could not fetch real-time scale data.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to fetch real-time scale data.");
     }
   };
 
@@ -166,7 +203,7 @@ function BatchManagement() {
               </h1>
               <div className="flex items-center space-x-4 text-sm text-gray-600">
                 <span>Started: {new Date(batch.startDate).toLocaleDateString()}</span>
-                <span>Expires: {new Date(batch.expiryDate).toLocaleDateString()}</span>
+                <span>Expected Harvest: {batch.harvestDate ? new Date(batch.harvestDate).toLocaleDateString() : new Date(new Date(batch.startDate).getTime() + (batch.growthDays || 21) * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>
                 <span className={`px-3 py-1 rounded-full text-white text-xs ${getStageColor(batch.stage || 'SPAWN')}`}>
                   {getStageIcon(batch.stage || 'SPAWN')} {batch.stage || 'SPAWN'}
                 </span>
@@ -221,7 +258,7 @@ function BatchManagement() {
                   <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white">
                     <h3 className="text-lg font-semibold mb-2">Days Active</h3>
                     <div className="text-3xl mb-2">
-                      {Math.ceil((new Date() - new Date(batch.startDate)) / (1000 * 60 * 60 * 24))}
+                      {Math.floor((new Date() - new Date(batch.startDate)) / (1000 * 60 * 60 * 24))}
                     </div>
                     <p className="text-green-100">Since spawn</p>
                   </div>
@@ -252,6 +289,85 @@ function BatchManagement() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Cultivation Guide based on Current Stage */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 shadow-sm">
+                  <h3 className="text-lg font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                    <Lightbulb className="w-5 h-5 text-amber-500" /> 
+                    Farmer's Real-Time Guide: {batch.stage || 'SPAWN'} Phase
+                  </h3>
+                  
+                  {(!batch.stage || batch.stage === 'SPAWN') && (
+                    <div className="text-sm text-emerald-900 space-y-3">
+                      <p className="font-semibold">Goal: Prepare substrate and inoculate with mushroom spawn.</p>
+                      <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                        <li><strong>Pasteurize:</strong> Soak straw/sawdust, heat at 60-80°C for 1-2 hours.</li>
+                        <li><strong>Cool:</strong> Bring substrate down to room temperature (~25°C).</li>
+                        <li><strong>Inoculate:</strong> Mix spawn (2-5% of weight) and pack tightly into poly bags.</li>
+                        <li><strong>Seal:</strong> Close bags with a cotton plug or breathable filter.</li>
+                      </ul>
+                      <div className="bg-white p-3 rounded-lg border border-emerald-100 flex gap-4 mt-2 text-xs">
+                        <div><strong className="text-emerald-700">Target Temp:</strong> 24-28°C</div>
+                        <div><strong className="text-emerald-700">Target Light:</strong> Dark</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {batch.stage === 'INCUBATION' && (
+                    <div className="text-sm text-emerald-900 space-y-3">
+                      <p className="font-semibold">Goal: Allow mycelium to fully colonize the substrate bags.</p>
+                      <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                        <li><strong>Store:</strong> Keep bags in a clean, dark room with minimal air movement.</li>
+                        <li><strong>Monitor:</strong> Check daily for contamination (green/black mold means discard the bag).</li>
+                        <li><strong>Wait:</strong> Takes 15-21 days until the bag is fully covered in white mycelium.</li>
+                      </ul>
+                      <div className="bg-white p-3 rounded-lg border border-emerald-100 flex gap-4 mt-2 text-xs">
+                        <div><strong className="text-emerald-700">Target Temp:</strong> 24-28°C</div>
+                        <div><strong className="text-emerald-700">Target Humidity:</strong> 60-70%</div>
+                        <div><strong className="text-emerald-700">Target Light:</strong> Dark</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {batch.stage === 'FRUITING' && (
+                    <div className="text-sm text-emerald-900 space-y-3">
+                      <p className="font-semibold">Goal: Trigger mushroom pin formation and growth.</p>
+                      <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                        <li><strong>Slit Bags:</strong> Cut small holes/slits in the fully white colonized bags.</li>
+                        <li><strong>Light & Air:</strong> Introduce indirect natural light (12 hours/day) and fresh air exchange (4-6 times/day).</li>
+                        <li><strong>Watering:</strong> Mist spray the room 3-4 times daily to keep humidity very high. Do not spray directly on pins.</li>
+                      </ul>
+                      <div className="bg-white p-3 rounded-lg border border-emerald-100 flex gap-4 mt-2 text-xs">
+                        <div><strong className="text-emerald-700">Target Temp:</strong> 20-25°C</div>
+                        <div><strong className="text-emerald-700">Target Humidity:</strong> 85-95%</div>
+                        <div><strong className="text-emerald-700">Target Light:</strong> Indirect (12hr)</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {batch.stage === 'HARVEST' && (
+                    <div className="text-sm text-emerald-900 space-y-3">
+                      <p className="font-semibold">Goal: Pick mushrooms at peak quality and log yield.</p>
+                      <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                        <li><strong>Timing:</strong> Harvest when mushroom cap edges start to flatten, but before they curl up completely or release spores.</li>
+                        <li><strong>Technique:</strong> Twist and pull the entire cluster from the base. Do not cut with a knife as stumps can rot.</li>
+                        <li><strong>Action:</strong> Go to the <strong>Harvest tab</strong> above to record your yield. It will auto-update your shop's stock!</li>
+                        <li><strong>Next Flush:</strong> Clean stumps, rest the bag for 7-10 days, then resume watering for a second flush.</li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {batch.stage === 'COMPLETED' && (
+                    <div className="text-sm text-emerald-900 space-y-3">
+                      <p className="font-semibold">Goal: Batch lifecycle finished.</p>
+                      <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                        <li><strong>Cleanup:</strong> All flushes are complete. Discard or compost the spent substrate.</li>
+                        <li><strong>Sterilize:</strong> Clean and sterilize the growing area thoroughly for the next batch.</li>
+                        <li><strong>Review:</strong> Check the Harvest tab for total yield added to your inventory.</li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -342,12 +458,20 @@ function BatchManagement() {
                       className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     />
                   </div>
-                  <button
-                    onClick={updateEnvironment}
-                    className="mt-4 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg"
-                  >
-                    Update Environment
-                  </button>
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      onClick={fetchRealTimeEnv}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg"
+                    >
+                      Fetch Real-Time Sensor Data
+                    </button>
+                    <button
+                      onClick={updateEnvironment}
+                      className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg"
+                    >
+                      Save Environment
+                    </button>
+                  </div>
                 </div>
 
                 {/* Current Environment Display */}
@@ -395,7 +519,7 @@ function BatchManagement() {
                 {batch.stage === "COMPLETED" ? (
                   <div className="bg-green-50 rounded-xl p-6">
                     <h3 className="text-lg font-semibold mb-4 text-green-800"><Check className="inline -mt-1 mr-2" /> Harvest Completed</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Actual Yield</label>
                         <div className="text-2xl font-bold text-green-600">{batch.actualYield} kg</div>
@@ -403,6 +527,14 @@ function BatchManagement() {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Quality Score</label>
                         <div className="text-2xl font-bold text-green-600">{batch.qualityScore}/10</div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Stock Updated</label>
+                        <div className="text-sm font-bold text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
+                          {batch.productId
+                            ? `✅ ${Math.floor(batch.actualYield)} units auto-added to product stock`
+                            : "⚠️ No product linked"}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -438,13 +570,21 @@ function BatchManagement() {
                       className="w-full mt-4 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
                       rows="3"
                     />
-                    <button
-                      onClick={recordHarvest}
-                      disabled={!actualYield}
-                      className="mt-4 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg"
-                    >
-                      Record Harvest
-                    </button>
+                    <div className="mt-4 flex gap-3">
+                      <button
+                        onClick={readSmartScale}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center"
+                      >
+                        <Activity className="w-4 h-4 mr-2" /> Read Smart Scale
+                      </button>
+                      <button
+                        onClick={recordHarvest}
+                        disabled={!actualYield}
+                        className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg"
+                      >
+                        Record Harvest
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
