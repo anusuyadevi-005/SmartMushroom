@@ -26,7 +26,19 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("APP_SECRET_KEY", "secret123")
 
 # allow CORS from frontend during development and permit Authorization header
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True, allow_headers=["Content-Type", "Authorization"]) 
+CORS(
+    app,
+    resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:3000",
+                "https://smartmushroom-og4i.onrender.com"
+            ]
+        }
+    },
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"]
+)
 
 # JWT config (used by auth routes)
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'change-this-secret')
