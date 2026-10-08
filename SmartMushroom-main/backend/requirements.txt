@@ -13,3 +13,5 @@ razorpay
 flask-socketio
 python-socketio
 eventlet
+gunicorn
+eventlet
