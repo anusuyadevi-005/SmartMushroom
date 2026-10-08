@@ -13,5 +13,5 @@ razorpay
 flask-socketio
 python-socketio
 eventlet
-gunicorn
+gunicorn==25.3.0
 eventlet
